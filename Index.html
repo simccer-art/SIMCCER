@@ -7,8 +7,19 @@
 <body>
 
   <input type="file" id="global-file-foto" style="display: none;" accept="image/*" onchange="salvaImmagineLocale(event)">
-  <div id="toast-container"></div>
-  
+
+  <div id="modal-edit-reparti" style="display:none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; align-items: center; justify-content: center;">
+      <div style="background: white; padding: 20px; border-radius: 8px; width: 90%; max-width: 500px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+          <h3 style="margin-top: 0; color: var(--primary); border-bottom: 2px solid var(--primary); padding-bottom: 5px;">Correzione Nomi Reparti</h3>
+          <p style="font-size: 13px; color: #555;">Correggi eventuali errori nei nomi dei reparti prima di generare la lettera ufficiale.</p>
+          <div id="container-edit-reparti" style="max-height: 50vh; overflow-y: auto; margin-bottom: 20px; padding-right: 5px;"></div>
+          <div style="display: flex; justify-content: space-between; gap: 10px;">
+              <button class="btn btn-danger" onclick="document.getElementById('modal-edit-reparti').style.display='none'">ANNULLA</button>
+              <button class="btn btn-success" id="btn-conferma-edit-reparti" style="width: 100%;" onclick="confermaEGeneraLetteraVisite()">SALVA E GENERA LETTERA</button>
+          </div>
+      </div>
+  </div>
+
   <div id="modal-profilo-segretario" style="display:none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; align-items: center; justify-content: center;">
       <div style="background: white; padding: 20px; border-radius: 8px; width: 90%; max-width: 600px; max-height: 90vh; overflow-y: auto; box-shadow: 0 4px 15px rgba(0,0,0,0.2); position: relative;">
           <button class="btn btn-danger btn-small" style="position: absolute; top: 15px; right: 15px; margin: 0;" onclick="chiudiProfiloSegretario()">X</button>
@@ -18,307 +29,534 @@
       </div>
   </div>
 
+  <div id="toast-container"></div>
+
   <div id="login-section">
-    <div style="margin-bottom: 25px;">
-       <h2 style="margin:0; color: var(--sidebar-bg);">GESTIONALE SIM CC</h2>
-       <p style="color: var(--text-soft); font-size: 14px;">Inserisci le tue credenziali per accedere</p>
-    </div>
-    <input type="password" id="password" placeholder="Password di accesso">
-    <button class="btn btn-primary" style="width:100%;" onclick="eseguiLogin()">ACCEDI AL SISTEMA</button>
-    <p id="login-error" style="color: var(--danger-red); display: none; font-weight: bold; margin-top: 15px; font-size: 13px;"></p>
+    <h2>Accesso Gestionale</h2>
+    <p>Sindacato Italiano Militari CC ER</p>
+    <input type="password" id="password" placeholder="Inserisci la tua Password">
+    <button class="btn" onclick="eseguiLogin()">ACCEDI</button>
+    <p id="login-error" style="color: red; display: none; font-weight: bold; margin-top: 15px;"></p>
   </div>
 
-  <div id="main-ui" style="display:none;">
-    <div class="app-wrapper">
-      
-      <nav id="sidebar">
-        <div class="sidebar-logo-container">
-           <h3 style="color:white; margin:0; font-size:16px; letter-spacing:1px;">SIM CC ER</h3>
+  <div id="main-ui">
+      <div id="app-header">
+        <div class="header-info" id="user-header-info"></div>
+        <div id="menu-buttons"></div>
+      </div>
+
+      <div id="dashboard-section">
+         <h2 style="color: var(--primary);">Benvenuto, <span id="dash-nome"></span></h2>
+         <p style="color: #666; margin-bottom: 40px;">Seleziona un modulo per iniziare a lavorare.</p>
+         <div id="dashboard-cards" style="display: flex; justify-content: center; gap: 20px; flex-wrap: wrap;"></div>
+         <div style="width: 100%; height: 30px;"></div>
+         <div id="dashboard-cards-row2" style="display: flex; justify-content: center; gap: 20px; flex-wrap: wrap;"></div>
+      </div>
+
+      <div class="container" id="container-profilo-globale" style="display:none;">
+        <div class="card" style="display:block;">
+          <h3 style="text-align: center;">Profilo Utente</h3>
+          <div id="content-profilo-globale"></div>
+          <div id="admin-modifiche-profilo" style="display:none; margin-top: 30px; border-top: 2px solid var(--primary); padding-top: 15px;">
+              <h4 style="color:var(--primary);">Gestione Modifiche Profilo (Admin)</h4>
+              <button class="btn btn-vista" onclick="caricaModificheProfilo()">CARICA RICHIESTE IN ATTESA</button>
+              <div id="admin-modifiche-container" style="margin-top:15px;"></div>
+          </div>
         </div>
-        <div class="sidebar-menu" id="main-sidebar-menu">
-           </div>
-        
-        <div class="sidebar-footer">
-           <a class="menu-item" onclick="eseguiApriModulo('UTENTE')">
-             <span class="menu-icon">👤</span>Profilo
-             <span id="badge-dash-utente" class="badge" style="display:none;"></span>
-           </a>
-           <a class="menu-item" onclick="location.reload()" style="color: #ff7675;">
-             <span class="menu-icon">⏻</span>Esci
-           </a>
+      </div>
+
+      <div class="container" id="container-gestione" style="display: none;">
+          <div class="card" style="display:block;">
+              <h3 style="text-align: center;">Gestione Segretari</h3>
+              <p style="text-align: center; color: #666; font-size: 14px;">Consulta i profili dei segretari della tua area di competenza.</p>
+              <div style="margin-bottom: 20px; display: flex; gap: 10px;"><input type="text" id="filtro-segretari" placeholder="Cerca per nome o cognome..." onkeyup="filtraSegretari()" style="flex: 1; max-width: 400px; margin: 0;"></div>
+              <div id="lista-segretari-container">Caricamento in corso...</div>
+          </div>
+      </div>
+
+      <div class="container" id="container-contabilita" style="display:none;">
+          <div class="card" style="display:block;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <h3 style="margin:0;">Contabilità <span id="contab-titolo-segr" style="color:var(--danger);"></span></h3>
+                  <div><button class="btn btn-vista" style="margin:0;" id="btn-esporta-pdf" onclick="esportaContabilitaPDF()">ESPORTA REGISTRO (PDF)</button></div>
+              </div>
+              <p style="color: #666; font-size: 13px; margin-top:5px;">Pannello di gestione entrate e uscite della Segreteria.</p>
+              
+              <div style="background-color: #f8f9fa; padding: 15px; border-left: 5px solid var(--primary); margin-bottom: 20px;">
+                  <div id="contab-view-conto">
+                      <strong>Istituto di Credito:</strong> <span id="contab-istituto">-</span><br>
+                      <strong>IBAN:</strong> <span id="contab-iban">-</span><br>
+                      <strong>Codice Fiscale Segreteria:</strong> <span id="contab-cf">-</span><br>
+                      <button class="btn btn-small btn-vista" style="margin-top:10px;" onclick="mostraEditConto()">MODIFICA DATI BANCA</button>
+                  </div>
+                  <div id="contab-edit-conto" style="display:none; margin-top:10px;">
+                      <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
+                          <div style="flex:1;"><label style="font-size:12px; font-weight:bold;">Istituto</label><input type="text" id="edit-contab-istituto" placeholder="Es. Intesa Sanpaolo" style="margin:0;"></div>
+                          <div style="flex:1;"><label style="font-size:12px; font-weight:bold;">IBAN</label><input type="text" id="edit-contab-iban" placeholder="IT..." style="margin:0;"></div>
+                          <div style="flex:1;"><label style="font-size:12px; font-weight:bold;">C.F.</label><input type="text" id="edit-contab-cf" placeholder="Codice Fiscale" style="margin:0;"></div>
+                      </div>
+                      <button class="btn btn-success btn-small" onclick="eseguiSalvaConto()">SALVA DATI</button>
+                      <button class="btn btn-danger btn-small" onclick="annullaEditConto()">ANNULLA</button>
+                  </div>
+              </div>
+
+              <h4 style="color: var(--primary); border-bottom: 2px solid var(--primary); padding-bottom:5px;">Registra Nuovo Movimento</h4>
+              <div style="background-color: #e9ecef; padding: 15px; border-radius: 4px; display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-bottom: 20px;">
+                 <div style="flex: 1; min-width: 130px;"><label style="font-size:12px; font-weight:bold;">Data Movimento:</label><input type="date" id="contab-data" style="margin:0;"></div>
+                 <div style="flex: 1; min-width: 150px;">
+                     <label style="font-size:12px; font-weight:bold;">Tipo:</label>
+                     <select id="contab-tipo" style="margin:0; font-weight:normal; width: 100%;">
+                         <option value="ENTRATA +" style="color:var(--success); font-weight:normal;">ENTRATA (+)</option>
+                         <option value="USCITA -" style="color:var(--danger); font-weight:normal;">USCITA (-)</option>
+                     </select>
+                 </div>
+                 <div style="flex: 2; min-width: 200px;">
+                     <label style="font-size:12px; font-weight:bold;">Ordinante / Beneficiario:</label>
+                     <div style="display:flex; gap:5px;">
+                         <select id="contab-ordinante" style="margin:0; flex:1;"></select>
+                         <button class="btn btn-vista" style="margin:0; padding:10px; min-width:35px;" onclick="aggiungiNuovoOrdinante()" title="Crea nuovo nominativo">+</button>
+                         <button class="btn btn-danger" style="margin:0; padding:10px; min-width:35px;" onclick="eliminaOrdinante()" title="Elimina nominativo selezionato">-</button>
+                     </div>
+                 </div>
+                 <div style="flex: 2; min-width: 200px;">
+                     <label style="font-size:12px; font-weight:bold;">Causale:</label>
+                     <div style="display:flex; gap:5px;">
+                         <select id="contab-causale" style="margin:0; flex:1;"></select>
+                         <button class="btn btn-vista" style="margin:0; padding:10px; min-width:35px;" onclick="aggiungiNuovaCausale()" title="Crea nuova causale">+</button>
+                         <button class="btn btn-danger" style="margin:0; padding:10px; min-width:35px;" onclick="eliminaCausale()" title="Elimina causale selezionata">-</button>
+                     </div>
+                 </div>
+                 <div style="flex: 2; min-width: 200px;"><label style="font-size:12px; font-weight:bold;">Dettaglio (opzionale):</label><input type="text" id="contab-dettaglio" style="margin:0;" placeholder="Es. Rimborso Tizio..."></div>
+                 <div style="flex: 1; min-width: 100px;"><label style="font-size:12px; font-weight:bold;">Importo (€):</label><input type="number" step="0.01" min="0" id="contab-importo" style="margin:0;" placeholder="0.00"></div>
+                 
+                 <div style="flex: 1; min-width: 180px;">
+                    <label style="font-size:12px; font-weight:bold;">Documento (Max 2MB):</label>
+                    <input type="file" id="contab-file" accept="application/pdf, image/*" style="margin:0; font-size:11px; padding:6px; border:1px solid #ccc; width:100%; box-sizing: border-box; background: white;">
+                 </div>
+
+                 <button class="btn btn-vista" style="margin:0; height: 38px;" onclick="preparaAnteprimaMovimento()">VERIFICA</button>
+              </div>
+              
+              <div id="anteprima-movimento-container" style="display:none; margin-bottom: 25px; border: 2px dashed var(--primary); padding: 15px; background-color:#f0f8ff; border-radius: 6px;">
+                 <h5 style="color: var(--primary); margin-top:0; margin-bottom: 10px; font-size:14px;">👀 Anteprima Movimento (Verifica i dati prima di registrare):</h5>
+                 <div id="tabella-anteprima-movimento"></div>
+                 <div style="display:flex; gap:10px; justify-content: flex-end; margin-top: 15px;">
+                     <button class="btn btn-danger" style="margin:0;" onclick="annullaAnteprima()">ANNULLA</button>
+                     <button class="btn" style="background-color: #fd7e14; color: white; margin:0;" onclick="modificaAnteprima()">MODIFICA</button>
+                     <button class="btn btn-evadi" style="margin:0;" id="btn-conferma-registra" onclick="confermaRegistrazioneMovimento()">REGISTRA</button>
+                 </div>
+              </div>
+
+              <div style="display:flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--primary); padding-bottom:5px; margin-bottom: 15px;">
+                  <h4 style="color: var(--primary); margin:0;">Registro Contabile</h4>
+                  <div id="btn-container-modifica"><button class="btn btn-danger" style="margin:0;" id="btn-modifica-registro" onclick="toggleEditContabilita()">MODIFICA REGISTRO</button></div>
+              </div>
+              
+              <div style="display:flex; gap:10px; margin-bottom:15px; background: white; padding: 10px; border: 1px solid #ddd; align-items:flex-end; flex-wrap: wrap;">
+                  <div style="flex:1; min-width: 120px;">
+                      <label style="font-size:12px; font-weight:bold;">Mese:</label>
+                      <select id="contab-filtro-mese" style="margin:0; padding:6px;" onchange="renderTabellaMovimenti()">
+                          <option value="TUTTI">Tutti I Mesi</option>
+                          <option value="1">Gennaio</option><option value="2">Febbraio</option><option value="3">Marzo</option>
+                          <option value="4">Aprile</option><option value="5">Maggio</option><option value="6">Giugno</option>
+                          <option value="7">Luglio</option><option value="8">Agosto</option><option value="9">Settembre</option>
+                          <option value="10">Ottobre</option><option value="11">Novembre</option><option value="12">Dicembre</option>
+                      </select>
+                  </div>
+                  <div style="flex:1; min-width: 120px;">
+                      <label style="font-size:12px; font-weight:bold;">Anno:</label>
+                      <select id="contab-filtro-anno" style="margin:0; padding:6px;" onchange="renderTabellaMovimenti()">
+                          <option value="TUTTI">Tutti Gli Anni</option>
+                          <option value="2024">2024</option><option value="2025">2025</option><option value="2026" selected>2026</option><option value="2027">2027</option>
+                      </select>
+                  </div>
+                  <div style="flex:1; min-width: 130px;">
+                      <label style="font-size:12px; font-weight:bold;">Da Data:</label>
+                      <input type="date" id="contab-filtro-da" style="margin:0; padding:6px;" onchange="renderTabellaMovimenti()">
+                  </div>
+                  <div style="flex:1; min-width: 130px;">
+                      <label style="font-size:12px; font-weight:bold;">A Data:</label>
+                      <input type="date" id="contab-filtro-a" style="margin:0; padding:6px;" onchange="renderTabellaMovimenti()">
+                  </div>
+              </div>
+              
+              <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 10px; background-color:#fff3cd; padding:15px; border: 1px solid #ffeeba; border-radius: 4px;">
+                  <div style="font-size: 14px;">Totale Entrate (Filtro): <strong id="contab-tot-in" style="color:var(--success);">€ 0.00</strong> <br>Totale Uscite (Filtro): <strong id="contab-tot-out" style="color:var(--danger);">€ 0.00</strong></div>
+                  <div style="font-size: 20px;"><strong>SALDO TOTALE CONTO: <span id="contab-saldo" style="color:var(--text-main);">€ 0.00</span></strong></div>
+              </div>
+              <div id="tabella-contabilita">Caricamento movimenti in corso...</div>
+          </div>
+      </div>
+
+      <div class="container" id="container-permessi" style="display:none;">
+        <div id="sezione-profilo-permessi" class="card"><h3 style="text-align: center;">Riepilogo Profilo</h3><div id="content-profilo-permessi"></div></div>
+        <div id="sezione-mie-richieste" class="card">
+          <h3>Stato Mie Richieste Permessi</h3>
+          <div id="banner-notifiche-mie" class="notifica-banner" style="display:none;"></div>
+          <div class="box-statistiche" id="box-mie-statistiche">Caricamento statistiche...</div>
+          <h4 style="color: var(--primary);">Pratiche in Trattazione</h4><div id="tabella-mie-trattazione">Caricamento pratiche...</div>
+          <hr style="border: 1px solid var(--primary); margin: 30px 0;">
+          <h4 style="color: var(--evadi);">Pratiche Evase (Da confermare Fruizione)</h4>
+          <p style="font-size: 13px; color: #555;">I tasti di conferma appariranno in automatico il giorno successivo alla data del permesso.</p>
+          <div id="tabella-mie-daconfermare">Caricamento pratiche...</div>
+          <hr style="border: 1px solid var(--primary); margin: 30px 0;">
+          <h4 style="color: var(--primary);">Storico Definitivo (Fruite / Rifiutate)</h4><div id="tabella-mie-storico">Caricamento storico...</div>
         </div>
-      </nav>
-      
-      <div id="main-content">
-        <header id="app-header">
-          <h2 class="app-title" id="page-current-modulo">DASHBOARD</h2>
-          <div class="user-info">
-             <span id="user-header-name" style="font-weight: 600; color: var(--text-soft);">Utente</span>
-             <div class="user-avatar" id="global-header-avatar" onclick="eseguiApriModulo('UTENTE')">U</div>
-          </div>
-        </header>
-        
-        <div id="content-body">
-          
-          <div id="menu-buttons" style="display:flex; gap:10px; margin-bottom:25px; flex-wrap:wrap; border-bottom: 2px solid #eee; padding-bottom: 15px; display:none;"></div>
-          
-          <div id="dashboard-section">
-             <div class="dash-row" id="dashboard-cards"></div>
-             <div class="dash-row" id="dashboard-cards-row2"></div>
-          </div>
-          
-          <div class="container" id="container-profilo-globale" style="display:none;">
-             <div class="card" style="display:block;"><h3 class="card-title">Il Tuo Profilo</h3><div id="content-profilo-globale"></div></div>
-             <div id="admin-modifiche-profilo" class="card" style="display:none;"><h3 class="card-title">Richieste Modifica (Admin)</h3><div id="admin-modifiche-container"></div></div>
-          </div>
-          
-          <div class="container" id="container-permessi" style="display:none;">
-             <div id="sezione-profilo-permessi" class="card"><h3 class="card-title">Riepilogo Profilo</h3><div id="content-profilo-permessi"></div></div>
-             <div id="sezione-mie-richieste" class="card"><h3 class="card-title">Stato Mie Richieste</h3><div id="banner-notifiche-mie" class="notifica-banner" style="display:none;"></div><div class="box-statistiche" id="box-mie-statistiche"></div><h4 style="color:var(--primary);">In Trattazione</h4><div id="tabella-mie-trattazione"></div><hr><h4 style="color:var(--evadi);">Da Confermare</h4><div id="tabella-mie-daconfermare"></div><hr><h4 style="color:var(--primary);">Storico</h4><div id="tabella-mie-storico"></div></div>
-             <div id="sezione-permessi" class="card"><h3 class="card-title">Componi Richiesta</h3><div id="div-delega"></div><div style="background:#f8f9fa; padding:15px; margin-top:10px;">Data:<input type="date" id="data-giorno" style="width:auto; margin-right:10px;"><input type="text" id="motivazione-giorno" placeholder="Motivazione (opz.)" style="width:auto; margin-right:10px;"><input type="checkbox" id="urgente"> URG <input type="checkbox" id="supera-limite"> LIMITE <button class="btn btn-primary" onclick="aggiungiPeriodoAllaBozza()">+ AGGIUNGI</button></div><ul id="lista-periodi-bozza"></ul><button class="btn btn-success" id="btn-invia-richiesta" style="display:none; width:100%;" onclick="inviaRichiestaMultipla()">INVIA RICHIESTA</button><p id="form-msg"></p><div id="sezione-inviati" style="display:none;"><div id="tabella-inviati-container"></div></div></div>
-             <div id="sezione-gestione" class="card"><h3 class="card-title" id="titolo-gestione">Gestione Pratiche</h3><p id="sottotitolo-gestione"></p><div id="banner-notifiche-gestione" class="notifica-banner" style="display:none;"></div><div id="tabella-container"></div><hr><div id="tabella-storico-container"></div></div>
-             <div id="sezione-statistiche" class="card"><h3 class="card-title">Statistiche</h3><div style="display:flex; gap:10px; margin-bottom:15px;"><select id="filtro-anno" style="width:auto;" onchange="renderStatisticheGlobali()"><option value="TUTTI">Tutti</option><option value="2025">2025</option><option value="2026" selected>2026</option></select><select id="filtro-mese" style="width:auto;" onchange="renderStatisticheGlobali()"><option value="TUTTI">Tutti</option><option value="4">Aprile</option></select><div id="div-btn-report" style="display:none;"><button class="btn btn-evadi" id="btn-report-pdf" onclick="generaReportPDF()">PDF</button></div></div><div id="statistiche-container"></div></div>
-          </div>
-
-          <div class="container" id="container-visite" style="display:none;">
-              <div id="sezione-profilo-visite" class="card"><h3 class="card-title">Profilo</h3><div id="content-profilo-visite"></div></div>
-              <div id="sezione-mie-visite" class="card"><h3 class="card-title">Le Mie Visite</h3><div id="banner-notifiche-mie-visite" class="notifica-banner" style="display:none;"></div><div id="tabella-mie-visite"></div></div>
-              <div id="sezione-componi-visita" class="card"><h3 class="card-title">Nuova Visita</h3><input type="text" id="visita-reparto" placeholder="Reparto"><input type="date" id="visita-data"><select id="visita-ora" onchange="arrotondaMezzora(this)"><option value="">Ora</option></select><select id="select-partecipanti-visita"></select><button class="btn btn-vista" onclick="aggiungiPartecipanteVisita()">+ PARTECIPANTE</button><ul id="lista-partecipanti-correnti"></ul><button class="btn btn-primary" onclick="aggiungiVisitaAllaBozza()">AGGIUNGI A BOZZA</button><ul id="lista-visite-bozza"></ul><button class="btn btn-success" id="btn-invia-visite" style="display:none;" onclick="inviaRichiestaVisite()">INVIA</button><p id="msg-visite"></p></div>
-              <div id="sezione-gestione-visite" class="card"><h3 class="card-title">Gestione</h3><div id="banner-gestione-visite" class="notifica-banner" style="display:none;"></div><div id="tabella-gestione-visite"></div><hr><div id="tabella-storico-visite"></div></div>
-          </div>
-          
-          <div class="container" id="container-rimborsi" style="display:none;">
-              <div id="sezione-profilo-rimborsi" class="card"><div id="content-profilo-rimborsi"></div></div>
-              <div id="sezione-mie-richieste-rimborsi" class="card"><div id="tabella-mie-rimborsi"></div></div>
-              <div id="sezione-componi-rimborso" class="card">
-                  <h3 class="card-title">Nuova Richiesta Rimborso</h3>
-                  
-                  <div style="display:flex; gap:15px; flex-wrap:wrap; margin-bottom:5px;">
-                      <div style="flex:1; min-width:120px;">
-                          <label style="font-size:12px; font-weight:bold; color:var(--text-soft);">Data:</label>
-                          <input type="text" id="rimb-data-odierna" readonly style="margin-top:5px; background:#e9ecef; cursor:not-allowed;">
-                      </div>
-                      <div style="flex:1; min-width:120px;">
-                          <label style="font-size:12px; font-weight:bold; color:var(--text-soft);">Protocollo:</label>
-                          <input type="text" id="rimb-protocollo" placeholder="Es. 12/2026" style="margin-top:5px;">
-                      </div>
-                      <div style="flex:2; min-width:200px;">
-                          <label style="font-size:12px; font-weight:bold; color:var(--text-soft);">Motivo / Evento:</label>
-                          <input type="text" id="rimb-motivo" placeholder="Es. Riunione..." style="margin-top:5px;">
-                      </div>
-                      <div style="flex:2; min-width:200px;">
-                          <label style="font-size:12px; font-weight:bold; color:var(--text-soft);">A carico di:</label>
-                          <select id="rimb-segreteria-pagante" style="margin-top:5px; border-color:var(--primary);"></select>
-                      </div>
-                  </div>
-
-                  <div style="display:flex; gap:15px; flex-wrap:wrap; margin-bottom:25px;">
-                      <div style="flex:1; min-width:200px;">
-                          <label style="font-size:12px; font-weight:bold; color:var(--text-soft);">Veicolo Utilizzato:</label>
-                          <select id="rimb-vettura" style="margin-top:5px;"></select>
-                      </div>
-                      <div style="flex:1; min-width:200px;">
-                          <label style="font-size:12px; font-weight:bold; color:var(--text-soft);">IBAN Accredito:</label>
-                          <select id="rimb-iban" style="margin-top:5px;"></select>
-                      </div>
-                  </div>
-
-                  <h4 style="color: var(--primary); border-bottom: 2px solid #eee; padding-bottom: 10px;">A) Spese Chilometriche</h4>
-                  <div id="container-tratte"></div>
-                  <button class="btn btn-primary btn-small" onclick="aggiungiRigaTratta()">+ AGGIUNGI TRATTA</button>
-                  <div style="text-align:right; font-size:14px; margin-top:10px;">Tot Km: <strong id="tot-km">0</strong> | Importo (A): <strong style="color:var(--danger-red);">€ <span id="tot-importo-a">0.00</span></strong></div>
-                  
-                  <h4 style="color: var(--primary); border-bottom: 2px solid #eee; padding-bottom: 10px; margin-top:25px;">B) Spese Varie</h4>
-                  <div id="container-spese"></div>
-                  <button class="btn btn-primary btn-small" onclick="aggiungiRigaSpesa()">+ AGGIUNGI SPESA</button>
-                  <div style="text-align:right; font-size:14px; margin-top:10px;">Importo (B): <strong style="color:var(--danger-red);">€ <span id="tot-importo-b">0.00</span></strong></div>
-                  
-                  <hr style="border: 1px dashed #ccc; margin: 25px 0;">
-                  <h3 style="text-align: right; margin-top:0;">TOTALE: <span style="color: var(--primary);">€ <span id="tot-generale">0.00</span></span></h3>
-                  
-                  <div style="display:flex; gap:10px; margin-top:20px;">
-                      <button class="btn btn-primary" style="flex:1;" onclick="generaPDFRimborsoDaFirmare(event)">1. SCARICA PDF</button>
-                      <button class="btn btn-warning" style="flex:1; color:black;" onclick="salvaRimborsoInAttesa()">SALVA BOZZA</button>
-                  </div>
-                  <p id="msg-rimb-pdf" style="text-align:center; margin-top:10px; font-weight:bold;"></p>
-                  
-                  <div id="div-upload-rimborso" style="display:none; background:#f8f9fa; padding:20px; border:2px dashed var(--primary); border-radius:8px; margin-top:20px;">
-                      <label style="font-weight:bold; color:var(--primary);">2. CARICA IL PDF FIRMATO E INVIA:</label>
-                      <input type="file" id="rimb-file" style="margin:10px 0; background:white;">
-                      <button class="btn btn-success" style="width:100%;" onclick="inviaRichiestaRimborsoDefinitiva()">INVIA RICHIESTA</button>
-                      <p id="msg-rimb-invio" style="text-align:center; margin-top:10px; font-weight:bold;"></p>
-                  </div>
+        <div id="sezione-permessi" class="card">
+          <h3>Componi Richiesta Permesso Sindacale</h3>
+          <div id="div-delega" style="margin-bottom: 15px;"></div>
+          <div style="background-color: #f8f9fa; padding: 15px; border: 1px solid #ddd; margin-bottom: 20px;">
+            <h4>1. Aggiungi Giorno</h4>
+            <div style="display: flex; gap: 30px; align-items: center; flex-wrap: wrap;">
+              <div style="display: flex; flex-direction: column; gap: 10px; min-width: 250px;">
+                <div><label style="font-size:12px; font-weight:bold;">Seleziona il Giorno:</label><input type="date" id="data-giorno" onchange="if(typeof controllaDate==='function') controllaDate()" style="margin:0;"></div>
+                <div><label style="font-size:12px; font-weight:bold;">Motivazione (Facoltativa):</label><input type="text" id="motivazione-giorno" placeholder="Es. Esigenza di servizio..." style="margin:0; font-size: 13px; padding: 8px;"></div>
               </div>
-              <div id="sezione-gestione-rimborsi" class="card">
-                  <div id="tabella-gestione-rimborsi"></div><hr>
-                  <select id="rimb-filtro-anno" onchange="applicaFiltriStoricoRimborsi()"><option value="TUTTI">Tutti</option></select><select id="rimb-filtro-mese" onchange="applicaFiltriStoricoRimborsi()"><option value="TUTTI">Tutti</option></select><select id="rimb-filtro-ben" onchange="applicaFiltriStoricoRimborsi()"><option value="TUTTI">Tutti</option></select><select id="rimb-filtro-segr" onchange="applicaFiltriStoricoRimborsi()"><option value="TUTTE">Tutte</option></select>
-                  <span id="rimb-totale-filtro">0</span><div id="tabella-storico-rimborsi"></div>
+              <div style="display: flex; flex-direction: column; gap: 15px;">
+                <div><input type="checkbox" id="urgente"> <label for="urgente">URGENTE (Deroga ai 5 giorni)</label></div>
+                <div><input type="checkbox" id="supera-limite"> <label for="supera-limite">SUPERA LIMITE (Oltre i 9 gg/mese)</label></div>
               </div>
+            </div>
+            <button class="btn" style="margin-top: 15px;" onclick="if(typeof aggiungiPeriodoAllaBozza==='function') aggiungiPeriodoAllaBozza()">+ AGGIUNGI AL CARRELLO</button>
           </div>
+          <h4>2. Riepilogo Richiesta da Inviare</h4>
+          <ul id="lista-periodi-bozza" class="lista-bozza"><li style="background-color: transparent; border: none; color: #777;">Nessun giorno aggiunto.</li></ul><br>
+          <button class="btn btn-success" id="btn-invia-richiesta" style="display: none; width: 100%; font-size: 16px; padding: 15px;" onclick="if(typeof inviaRichiestaMultipla==='function') inviaRichiestaMultipla()">INVIA RICHIESTA COMPLETA</button>
+          <p id="form-msg" style="font-weight: bold; margin-top: 15px;"></p>
+          <div id="sezione-inviati" style="display: none; margin-top: 30px;"><h4 style="color: var(--primary);">Riepilogo Pratiche Appena Inviate</h4><div id="tabella-inviati-container"></div></div>
+        </div>
+        <div id="sezione-gestione" class="card">
+          <h3 id="titolo-gestione">Gestione Pratiche</h3>
+          <p id="sottotitolo-gestione">Elenco Pratiche Operative.</p>
+          <div id="banner-notifiche-gestione" class="notifica-banner" style="display:none;"></div>
+          <h4 style="color: var(--primary);">Pratiche in Trattazione</h4><div id="tabella-container">Ricerca pratiche in corso...</div>
+          <hr style="border: 1px solid var(--primary); margin: 30px 0;">
+          <h4 style="color: var(--primary);">Storico Pratiche Trattate</h4><div id="tabella-storico-container">Caricamento storico...</div>
+        </div>
+        <div id="sezione-statistiche" class="card">
+          <h3>Statistiche Permessi Sindacali</h3>
+          <div style="background-color: var(--bg-color); padding: 15px; margin-bottom: 20px; display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end; justify-content: space-between;">
+            <div style="display: flex; gap: 15px;">
+              <div><label style="font-size: 12px; font-weight: bold;">ANNO</label><select id="filtro-anno" onchange="if(typeof renderStatisticheGlobali==='function') renderStatisticheGlobali()"><option value="TUTTI">Tutti</option><option value="2025">2025</option><option value="2026" selected>2026</option></select></div>
+              <div><label style="font-size: 12px; font-weight: bold;">MESE</label><select id="filtro-mese" onchange="if(typeof renderStatisticheGlobali==='function') renderStatisticheGlobali()"><option value="TUTTI">Tutti</option><option value="1">Gen</option><option value="2">Feb</option><option value="3">Mar</option><option value="4">Apr</option><option value="5">Mag</option><option value="6">Giu</option><option value="7">Lug</option><option value="8">Ago</option><option value="9">Set</option><option value="10">Ott</option><option value="11">Nov</option><option value="12">Dic</option></select></div>
+            </div>
+            <div id="div-btn-report" style="display:none;"><button class="btn btn-evadi" id="btn-report-pdf" onclick="if(typeof generaReportPDF==='function') generaReportPDF()">ESPORTA REPORT PDF MESE</button></div>
+          </div>
+          <div id="statistiche-container">Caricamento in corso...</div>
+        </div>
+      </div> 
 
-          <div class="container" id="container-contabilita" style="display:none;">
-              <div class="card" style="display:block;">
-                  <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 20px;">
-                      <h3 class="card-title" style="border:none; margin:0; padding:0;">Contabilità <span id="contab-titolo-segr" style="color:var(--danger-red);"></span></h3>
-                      <button class="btn btn-primary" id="btn-esporta-pdf" onclick="esportaContabilitaPDF()">ESPORTA REGISTRO (PDF)</button>
-                  </div>
-                  <div style="background-color: #f8f9fa; padding: 20px; border-left: 5px solid var(--primary); border-radius: 4px; margin-bottom: 25px;">
-                      <div id="contab-view-conto" style="font-size: 14px; line-height: 1.8;">
-                          <strong>Istituto:</strong> <span id="contab-istituto">-</span><br>
-                          <strong>IBAN:</strong> <span id="contab-iban">-</span><br>
-                          <strong>C.F.:</strong> <span id="contab-cf">-</span><br>
-                          <button class="btn btn-small btn-primary" style="margin-top:10px;" onclick="mostraEditConto()">MODIFICA DATI</button>
-                      </div>
-                      <div id="contab-edit-conto" style="display:none; margin-top:10px;">
-                          <div style="display:flex; gap:15px; flex-wrap:wrap; margin-bottom:10px;">
-                              <div style="flex:1;"><label style="font-size:12px; font-weight:bold; color:var(--text-soft);">Istituto</label><input type="text" id="edit-contab-istituto" style="margin-top:5px;"></div>
-                              <div style="flex:1;"><label style="font-size:12px; font-weight:bold; color:var(--text-soft);">IBAN</label><input type="text" id="edit-contab-iban" style="margin-top:5px;"></div>
-                              <div style="flex:1;"><label style="font-size:12px; font-weight:bold; color:var(--text-soft);">C.F.</label><input type="text" id="edit-contab-cf" style="margin-top:5px;"></div>
-                          </div>
-                          <button class="btn btn-primary btn-small" onclick="eseguiSalvaConto()">SALVA DATI</button>
-                          <button class="btn btn-danger btn-small" onclick="annullaEditConto()">ANNULLA</button>
-                      </div>
-                  </div>
-                  <h4 style="color: var(--primary); border-bottom: 1px solid #eee; padding-bottom:10px;">Registra Movimento</h4>
-                  <div style="background-color: #ffffff; padding: 20px; border: 1px solid #ddd; border-radius: 8px; display: flex; flex-wrap: wrap; gap: 15px; align-items: flex-end; margin-bottom: 30px;">
-                     <div style="flex: 1; min-width: 140px;"><label style="font-size:12px; font-weight:bold; color:var(--text-soft);">Data:</label><input type="date" id="contab-data" style="margin-top:5px;"></div>
-                     <div style="flex: 1; min-width: 160px;">
-                         <label style="font-size:12px; font-weight:bold; color:var(--text-soft);">Tipo:</label>
-                         <select id="contab-tipo" style="margin-top:5px;"><option value="ENTRATA +" style="color:var(--primary); font-weight:bold;">ENTRATA (+)</option><option value="USCITA -" style="color:var(--danger-red); font-weight:bold;">USCITA (-)</option></select>
-                     </div>
-                     <div style="flex: 2; min-width: 200px;">
-                         <label style="font-size:12px; font-weight:bold; color:var(--text-soft);">Ordinante / Beneficiario:</label>
-                         <div style="display:flex; gap:5px; margin-top:5px;"><select id="contab-ordinante" style="margin:0; flex:1;"></select><button class="btn btn-primary" style="margin:0; padding:10px 15px;" onclick="aggiungiNuovoOrdinante()">+</button><button class="btn btn-danger" style="margin:0; padding:10px 15px;" onclick="eliminaOrdinante()">-</button></div>
-                     </div>
-                     <div style="flex: 2; min-width: 200px;">
-                         <label style="font-size:12px; font-weight:bold; color:var(--text-soft);">Causale:</label>
-                         <div style="display:flex; gap:5px; margin-top:5px;"><select id="contab-causale" style="margin:0; flex:1;"></select><button class="btn btn-primary" style="margin:0; padding:10px 15px;" onclick="aggiungiNuovaCausale()">+</button><button class="btn btn-danger" style="margin:0; padding:10px 15px;" onclick="eliminaCausale()">-</button></div>
-                     </div>
-                     <div style="flex: 2; min-width: 200px;"><label style="font-size:12px; font-weight:bold; color:var(--text-soft);">Dettaglio:</label><input type="text" id="contab-dettaglio" style="margin-top:5px;"></div>
-                     <div style="flex: 1; min-width: 120px;"><label style="font-size:12px; font-weight:bold; color:var(--text-soft);">Importo (€):</label><input type="number" step="0.01" min="0" id="contab-importo" style="margin-top:5px;" placeholder="0.00"></div>
-                     <div style="flex: 1; min-width: 200px;"><label style="font-size:12px; font-weight:bold; color:var(--primary);">Doc (Max 2MB):</label><input type="file" id="contab-file" accept="application/pdf, image/*" style="margin-top:5px; font-size:12px; padding:9px; border:1px solid #ccc; width:100%; border-radius:4px;"></div>
-                     <button class="btn btn-primary" style="margin:0; height: 44px; width: 100%;" onclick="preparaAnteprimaMovimento()">VERIFICA E REGISTRA</button>
-                  </div>
-                  <div id="anteprima-movimento-container" style="display:none; margin-bottom: 30px; border: 2px dashed var(--primary); padding: 20px; background-color:#f0f8ff; border-radius: 8px;">
-                     <h5 style="color: var(--primary); margin-top:0; margin-bottom: 15px; font-size:15px;">👀 Anteprima Movimento:</h5>
-                     <div id="tabella-anteprima-movimento"></div>
-                     <div style="display:flex; gap:10px; justify-content: flex-end; margin-top: 20px;"><button class="btn btn-danger" style="margin:0;" onclick="annullaAnteprima()">ANNULLA</button><button class="btn btn-warning" style="margin:0;" onclick="modificaAnteprima()">MODIFICA</button><button class="btn btn-primary" style="margin:0;" id="btn-conferma-registra" onclick="confermaRegistrazioneMovimento()">CONFERMA</button></div>
-                  </div>
-                  <div style="display:flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; padding-bottom:10px; margin-bottom: 20px;">
-                      <h4 style="color: var(--primary); margin:0; font-size:16px;">Registro Contabile</h4>
-                      <div id="btn-container-modifica"><button class="btn btn-danger" style="margin:0;" id="btn-modifica-registro" onclick="toggleEditContabilita()">MODIFICA REGISTRO</button></div>
-                  </div>
-                  <div style="display:flex; gap:15px; margin-bottom:20px; background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #eee; align-items:flex-end; flex-wrap: wrap;">
-                      <div style="flex:1; min-width: 120px;"><label style="font-size:12px; font-weight:bold; color:var(--text-soft);">Mese:</label><select id="contab-filtro-mese" style="margin-top:5px;" onchange="renderTabellaMovimenti()"><option value="TUTTI">Tutti I Mesi</option><option value="1">Gennaio</option><option value="2">Febbraio</option><option value="3">Marzo</option><option value="4">Aprile</option><option value="5">Maggio</option><option value="6">Giugno</option><option value="7">Luglio</option><option value="8">Agosto</option><option value="9">Settembre</option><option value="10">Ottobre</option><option value="11">Novembre</option><option value="12">Dicembre</option></select></div>
-                      <div style="flex:1; min-width: 120px;"><label style="font-size:12px; font-weight:bold; color:var(--text-soft);">Anno:</label><select id="contab-filtro-anno" style="margin-top:5px;" onchange="renderTabellaMovimenti()"><option value="TUTTI">Tutti Gli Anni</option><option value="2025">2025</option><option value="2026" selected>2026</option></select></div>
-                      <div style="flex:1; min-width: 140px;"><label style="font-size:12px; font-weight:bold; color:var(--text-soft);">Da Data:</label><input type="date" id="contab-filtro-da" style="margin-top:5px;" onchange="renderTabellaMovimenti()"></div>
-                      <div style="flex:1; min-width: 140px;"><label style="font-size:12px; font-weight:bold; color:var(--text-soft);">A Data:</label><input type="date" id="contab-filtro-a" style="margin-top:5px;" onchange="renderTabellaMovimenti()"></div>
-                  </div>
-                  <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background-color:#eef2f5; padding:20px; border-radius: 8px; border-left: 5px solid var(--primary);">
-                      <div style="font-size: 14px;">Totale Entrate (Filtro): <strong id="contab-tot-in" style="color:var(--primary);">€ 0.00</strong> <br>Totale Uscite (Filtro): <strong id="contab-tot-out" style="color:var(--danger-red);">€ 0.00</strong></div>
-                      <div style="font-size: 22px;"><strong>SALDO CONTO: <span id="contab-saldo" style="color:var(--text-main);">€ 0.00</span></strong></div>
-                  </div>
-                  <div id="tabella-contabilita"></div>
-              </div>
+      <div class="container" id="container-visite" style="display: none;">
+        <div id="sezione-profilo-visite" class="card"><h3 style="text-align: center;">Riepilogo Profilo</h3><div id="content-profilo-visite"></div></div>
+        <div id="sezione-mie-visite" class="card">
+          <h3>Le Mie Visite ai Reparti</h3>
+          <div id="banner-notifiche-mie-visite" class="notifica-banner" style="display:none;"></div>
+          <h4 style="color: var(--primary);">Visite in cui sei stato incluso</h4>
+          <div id="tabella-mie-visite">Caricamento storico...</div>
+        </div>
+        <div id="sezione-componi-visita" class="card">
+          <h3>Inserisci una Nuova Visita</h3>
+          <div style="background-color: #f8f9fa; padding: 15px; border: 1px solid #ddd; margin-bottom: 20px;">
+            <h4>Dettagli Visita</h4>
+            <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 15px;">
+              <div style="flex: 2; min-width: 250px;"><label style="font-size:12px; font-weight:bold;">Reparto / Comando:</label><input type="text" id="visita-reparto" placeholder="Es. Comando Provinciale di Bologna" style="margin:0;"></div>
+              <div style="flex: 1; min-width: 150px;"><label style="font-size:12px; font-weight:bold;">Data Visita:</label><input type="date" id="visita-data" style="margin:0;"></div>
+              <div style="flex: 1; min-width: 120px;"><label style="font-size:12px; font-weight:bold;">Ora:</label><select id="visita-ora" style="margin:0;" onchange="if(typeof arrotondaMezzora==='function') arrotondaMezzora(this)"><option value="">Seleziona...</option></select></div>
+            </div>
+            <hr style="border: 0.5px solid #ccc; margin: 20px 0;">
+            <h4>Seleziona Partecipanti</h4>
+            <div style="display: flex; gap: 15px; align-items: flex-end;">
+              <div style="flex: 1;"><label style="font-size:12px; font-weight:bold;">Aggiungi Segretario:</label><select id="select-partecipanti-visita" style="margin:0;"></select></div>
+              <button class="btn btn-vista" onclick="if(typeof aggiungiPartecipanteVisita==='function') aggiungiPartecipanteVisita()">+ AGGIUNGI</button>
+            </div>
+            <div style="margin-top: 15px;"><strong style="font-size:13px; color:#555;">Segretari Inclusi nella Visita:</strong><ul id="lista-partecipanti-correnti" class="lista-bozza" style="margin-top: 5px;"><li style="background-color: transparent; border: none; padding: 0; color: #777;">Nessun partecipante aggiunto.</li></ul></div>
+            <button class="btn" style="margin-top: 25px; width: 100%;" onclick="if(typeof aggiungiVisitaAllaBozza==='function') aggiungiVisitaAllaBozza()">CONFERMA VISITA E AGGIUNGI AL CARRELLO</button>
           </div>
+          <h4>Riepilogo Visite da Inviare</h4>
+          <ul id="lista-visite-bozza" class="lista-bozza"><li style="background-color: transparent; border: none; color: #777;">Nessuna visita nel carrello.</li></ul><br>
+          <button class="btn btn-success" id="btn-invia-visite" style="display: none; width: 100%; font-size: 16px; padding: 15px;" onclick="if(typeof inviaRichiestaVisite==='function') inviaRichiestaVisite()">INVIA RICHIESTE</button>
+          <p id="msg-visite" style="font-weight: bold; margin-top: 15px;"></p>
+        </div>
+        <div id="sezione-gestione-visite" class="card">
+          <h3>Gestione Visite ai Reparti</h3>
+          <p>Pannello di approvazione ed evasione comunicazioni.</p>
+          <div id="banner-gestione-visite" class="notifica-banner" style="display:none;"></div>
+          <h4 style="color: var(--primary);">Visite in Trattazione</h4><div id="tabella-gestione-visite">Ricerca visite in corso...</div>
+          <hr style="border: 1px solid var(--primary); margin: 30px 0;">
+          <h4 style="color: var(--primary);">Storico Visite</h4><div id="tabella-storico-visite">Caricamento storico...</div>
+        </div>
+      </div> 
+
+      <div class="container" id="container-rimborsi" style="display: none;">
+        <div id="sezione-profilo-rimborsi" class="card"><h3 style="text-align: center;">Riepilogo Profilo</h3><div id="content-profilo-rimborsi"></div></div>
+        <div id="sezione-mie-richieste-rimborsi" class="card">
+          <h3>Le Mie Richieste di Rimborso</h3>
+          <div id="banner-notifiche-mie-rimborsi" class="notifica-banner" style="display:none;"></div>
+          <div id="tabella-mie-rimborsi">Caricamento storico...</div>
+        </div>
+        <div id="sezione-componi-rimborso" class="card">
+          <h3>Nuova Richiesta Rimborso</h3>
+          <p style="font-size:13px; color:#555;">Compila i dati, aggiungi le spese. I calcoli sono automatici.</p>
+          <div style="background-color: #f8f9fa; padding: 15px; border: 1px solid #ddd; margin-bottom: 20px;">
+            <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 20px; background-color: #e9ecef; padding: 10px; border-radius: 4px; border-left: 4px solid var(--primary);">
+              <div style="flex: 1; min-width: 150px;"><label style="font-size:12px; font-weight:bold;">Data Odierna:</label><input type="text" id="rimb-data-odierna" readonly style="margin:0; background-color:#dee2e6; cursor: not-allowed; border: 1px solid #ced4da;"></div>
+              <div style="flex: 1; min-width: 150px;"><label style="font-size:12px; font-weight:bold;">Nr. Protocollo:</label><input type="text" id="rimb-protocollo" placeholder="Es. 6/2-1-2026" style="margin:0; text-transform: uppercase;"></div>
+              <div style="flex: 2; min-width: 250px;"><label style="font-size:12px; font-weight:bold; color: var(--danger);">Segreteria che procederà al rimborso:</label><select id="rimb-segreteria-pagante" style="margin:0; border: 1px solid var(--danger);"></select></div>
+            </div>
+            <div style="margin-bottom: 15px;"><label style="font-size:12px; font-weight:bold;">Motivo / Evento:</label><input type="text" id="rimb-motivo" placeholder="Es. PRESENTAZIONE LIBRO..." style="margin:0; text-transform: uppercase;"></div>
+            <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 20px;">
+              <div style="flex: 1; min-width: 200px;"><label style="font-size:12px; font-weight:bold;">Vettura Utilizzata (Mezzo Proprio):</label><select id="rimb-vettura" style="margin:0;"></select></div>
+              <div style="flex: 1; min-width: 200px;"><label style="font-size:12px; font-weight:bold;">IBAN Accredito:</label><select id="rimb-iban" style="margin:0;"></select></div>
+            </div>
+            <h4 style="color: var(--primary); border-bottom: 2px solid var(--primary); padding-bottom: 5px;">A) Spese Chilometriche</h4>
+            <div id="container-tratte"></div>
+            <button class="btn btn-vista btn-small" style="margin-top:5px;" onclick="if(typeof aggiungiRigaTratta==='function') aggiungiRigaTratta()">+ AGGIUNGI TRATTA</button>
+            <div style="text-align: right; margin-top: 10px; font-size: 14px;">Totale Km: <strong id="tot-km">0</strong> | Importo (A) (Km x € 0,50): <strong style="color: var(--danger);">€ <span id="tot-importo-a">0.00</span></strong></div>
+            <h4 style="color: var(--primary); border-bottom: 2px solid var(--primary); padding-bottom: 5px; margin-top: 25px;">B) Spese Viaggio e Soggiorno / Varie</h4>
+            <div id="container-spese"></div>
+            <button class="btn btn-vista btn-small" style="margin-top:5px;" onclick="if(typeof aggiungiRigaSpesa==='function') aggiungiRigaSpesa()">+ AGGIUNGI SPESA</button>
+            <div style="text-align: right; margin-top: 10px; font-size: 14px;">Importo (B): <strong style="color: var(--danger);">€ <span id="tot-importo-b">0.00</span></strong></div>
+            <hr style="border: 1px dashed #ccc; margin: 25px 0;">
+            <h3 style="text-align: right; color: var(--text-main);">TOTALE DA RIMBORSARE (A+B): <span style="color: var(--success);">€ <span id="tot-generale">0.00</span></span></h3>
+            
+            <div style="display: flex; gap: 15px; margin-top: 20px;">
+                <button class="btn btn-vista" style="flex: 1; margin: 0; padding: 12px; font-size: 15px;" onclick="if(typeof generaPDFRimborsoDaFirmare==='function') generaPDFRimborsoDaFirmare(event)">1. SCARICA PDF DA FIRMARE</button>
+                <button class="btn btn-warning" style="flex: 1; margin: 0; padding: 12px; font-size: 15px; color: black;" onclick="if(typeof salvaRimborsoInAttesa==='function') salvaRimborsoInAttesa()">SALVA RICHIESTA IN BOZZA</button>
+            </div>
+            
+            <p id="msg-rimb-pdf" style="font-size:13px; font-weight:bold; color:var(--vista); display:none; margin-top:10px; text-align: center;"></p>
+            <div id="div-upload-rimborso" style="display:none; background-color: #fff; padding: 15px; border: 2px solid var(--danger); margin-top:20px;">
+                <label style="font-size:14px; font-weight:bold; color:var(--danger);">2. CARICA IL PDF FIRMATO PER INVIARE:</label>
+                <input type="file" id="rimb-file" accept="application/pdf, image/*" style="margin-top:10px; border: 1px solid #ccc; padding: 5px;">
+                <button class="btn btn-success" style="width: 100%; margin-top: 15px; font-size:16px; padding:12px;" onclick="if(typeof inviaRichiestaRimborsoDefinitiva==='function') inviaRichiestaRimborsoDefinitiva()">INVIA RICHIESTA RIMBORSO</button>
+                <p id="msg-rimb-invio" style="font-weight: bold; margin-top: 10px;"></p>
+            </div>
+          </div>
+        </div>
+        <div id="sezione-gestione-rimborsi" class="card">
+          <h3>Gestione Rimborsi</h3>
+          <p>Pannello di approvazione e pagamento Rimborsi.</p>
+          <div id="banner-gestione-rimborsi" class="notifica-banner" style="display:none;"></div>
+          <h4 style="color: var(--primary);">Pratiche in Trattazione</h4><div id="tabella-gestione-rimborsi">Ricerca rimborsi in corso...</div>
           
-          <div class="container" id="container-gestione" style="display:none;">
-              <div class="card" style="display:block;">
-                  <h3 class="card-title">Gestione Segretari</h3>
-                  <input type="text" id="filtro-segretari" placeholder="Cerca..." onkeyup="filtraSegretari()">
-                  <div id="lista-segretari-container"></div>
+          <hr style="border: 1px solid var(--primary); margin: 30px 0;">
+          <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+              <h4 style="color: var(--primary); margin: 0;">Storico Rimborsi</h4>
+              <div style="font-size: 14px; background-color: #fff3cd; padding: 6px 12px; border: 1px solid #ffeeba; border-radius: 4px;">
+                  Totale Erogato (Filtro): <strong id="rimb-totale-filtro" style="color:var(--success); font-size:16px;">€ 0.00</strong>
               </div>
           </div>
 
-          <div class="container" id="container-materiali" style="display:none;">
-            <div id="sezione-elenco-materiali" class="card" style="display:block;">
-              <h3 class="card-title">Gestione Materiali <span id="mat-titolo-segr" style="color:var(--danger-red); font-size: 16px;"></span></h3>
-              <p style="color: var(--text-soft); font-size: 13px; margin-top:-10px; margin-bottom:20px;">Registra e gestisci l'inventario dei beni in dotazione.</p>
-              <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; border: 1px solid #eee; margin-bottom: 25px;">
-                <h4 style="margin-top:0; color:var(--primary); font-size:15px; border-bottom:1px solid #ddd; padding-bottom:10px;">Registra Nuovo Materiale</h4>
-                <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 15px;">
-                  <div style="flex: 1; min-width: 150px;"><label style="font-size:12px; font-weight:bold; color:var(--text-soft);">Categoria:</label><select id="mat-categoria" style="margin-top:5px;"><option value="">Seleziona...</option><option value="Elettronica/Informatica">Elettronica/Informatica</option><option value="Cancelleria">Cancelleria</option><option value="Mobili/Arredi">Mobili/Arredi</option><option value="Materiale Promozionale">Materiale Promozionale</option><option value="Altro">Altro</option></select></div>
-                  <div style="flex: 2; min-width: 200px;"><label style="font-size:12px; font-weight:bold; color:var(--text-soft);">Descrizione Bene:</label><input type="text" id="mat-descrizione" placeholder="Es. Stampante Laser..." style="margin-top:5px;"></div>
-                  <div style="flex: 1; min-width: 80px;"><label style="font-size:12px; font-weight:bold; color:var(--text-soft);">Quantità:</label><input type="number" id="mat-quantita" min="1" value="1" style="margin-top:5px;"></div>
-                  <div style="flex: 1; min-width: 100px;"><label style="font-size:12px; font-weight:bold; color:var(--text-soft);">Costo Tot. (€):</label><input type="number" step="0.01" min="0" id="mat-costo" placeholder="0.00" style="margin-top:5px;"></div>
-                  <div style="flex: 1; min-width: 130px;"><label style="font-size:12px; font-weight:bold; color:var(--text-soft);">Data Acquisto:</label><input type="date" id="mat-data" style="margin-top:5px;"></div>
-                </div>
-                <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 15px;">
-                  <div style="flex: 1; min-width: 200px;"><label style="font-size:12px; font-weight:bold; color:var(--text-soft);">Acquistato da:</label><select id="mat-acquistato-da" style="margin-top:5px;"><option value="">Seleziona...</option><option value="Segreteria Nazionale">Segreteria Nazionale</option><option value="Segreteria Regionale EMILIA ROMAGNA">Segreteria Regionale EMILIA ROMAGNA</option><option value="Segreteria Provinciale BOLOGNA">Segreteria Provinciale BOLOGNA</option><option value="Segreteria Provinciale FERRARA">Segreteria Provinciale FERRARA</option><option value="Segreteria Provinciale FORLI-CESENA">Segreteria Provinciale FORLI-CESENA</option><option value="Segreteria Provinciale MODENA">Segreteria Provinciale MODENA</option><option value="Segreteria Provinciale PARMA">Segreteria Provinciale PARMA</option><option value="Segreteria Provinciale PIACENZA">Segreteria Provinciale PIACENZA</option><option value="Segreteria Provinciale RAVENNA">Segreteria Provinciale RAVENNA</option><option value="Segreteria Provinciale REGGIO EMILIA">Segreteria Provinciale REGGIO EMILIA</option><option value="Segreteria Provinciale RIMINI">Segreteria Provinciale RIMINI</option></select></div>
-                  <div style="flex: 1; min-width: 200px;"><label style="font-size:12px; font-weight:bold; color:var(--text-soft);">In Carico A (Assegnazione):</label><select id="mat-in-carico-a" style="margin-top:5px;" onchange="aggiornaTendinaCustodi()"><option value="">Seleziona...</option><option value="Segreteria Regionale EMILIA ROMAGNA">Segreteria Regionale EMILIA ROMAGNA</option><option value="Segreteria Provinciale BOLOGNA">Segreteria Provinciale BOLOGNA</option><option value="Segreteria Provinciale FERRARA">Segreteria Provinciale FERRARA</option><option value="Segreteria Provinciale FORLI-CESENA">Segreteria Provinciale FORLI-CESENA</option><option value="Segreteria Provinciale MODENA">Segreteria Provinciale MODENA</option><option value="Segreteria Provinciale PARMA">Segreteria Provinciale PARMA</option><option value="Segreteria Provinciale PIACENZA">Segreteria Provinciale PIACENZA</option><option value="Segreteria Provinciale RAVENNA">Segreteria Provinciale RAVENNA</option><option value="Segreteria Provinciale REGGIO EMILIA">Segreteria Provinciale REGGIO EMILIA</option><option value="Segreteria Provinciale RIMINI">Segreteria Provinciale RIMINI</option></select></div>
-                  <div style="flex: 1; min-width: 200px;"><label style="font-size:12px; font-weight:bold; color:var(--text-soft);">Custode (Seleziona):</label><select id="mat-custode" style="margin-top:5px;"><option value="">Prima seleziona 'In Carico A'</option></select></div>
-                </div>
-                <div style="display: flex; gap: 15px; align-items: flex-end;">
-                  <div style="flex: 1;"><label style="font-size:12px; font-weight:bold; color:var(--primary);">Documento Fiscale (Max 2MB):</label><input type="file" id="mat-file" accept="application/pdf, image/*" style="margin-top:5px; border: 1px solid #ccc; padding: 8px; width: 100%; border-radius: 4px; background: white;"></div>
-                  <button class="btn btn-primary" id="btn-salva-materiale" style="height: 42px; margin:0;" onclick="if(typeof eseguiSalvaMateriale==='function') eseguiSalvaMateriale()">REGISTRA MATERIALE</button>
-                </div>
+          <div style="display:flex; gap:10px; margin-bottom:15px; background: white; padding: 10px; border: 1px solid #ddd; align-items:flex-end; flex-wrap: wrap;">
+              <div style="flex:1; min-width: 100px;">
+                  <label style="font-size:12px; font-weight:bold;">Anno:</label>
+                  <select id="rimb-filtro-anno" style="margin:0; padding:6px;" onchange="if(typeof applicaFiltriStoricoRimborsi==='function') applicaFiltriStoricoRimborsi()">
+                      <option value="TUTTI">Tutti</option><option value="2025">2025</option><option value="2026" selected>2026</option><option value="2027">2027</option>
+                  </select>
               </div>
-              <div style="display:flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; padding-bottom:10px; margin-bottom: 20px; margin-top:30px;">
-                  <h4 style="color: var(--primary); margin:0; font-size:16px;">Inventario Materiali</h4>
-                  <div id="btn-container-modifica-mat"></div>
+              <div style="flex:1; min-width: 100px;">
+                  <label style="font-size:12px; font-weight:bold;">Mese:</label>
+                  <select id="rimb-filtro-mese" style="margin:0; padding:6px;" onchange="if(typeof applicaFiltriStoricoRimborsi==='function') applicaFiltriStoricoRimborsi()">
+                      <option value="TUTTI">Tutti</option><option value="1">Gennaio</option><option value="2">Febbraio</option><option value="3">Marzo</option><option value="4">Aprile</option><option value="5">Maggio</option><option value="6">Giugno</option><option value="7">Luglio</option><option value="8">Agosto</option><option value="9">Settembre</option><option value="10">Ottobre</option><option value="11">Novembre</option><option value="12">Dicembre</option>
+                  </select>
               </div>
-              <div style="display:flex; gap:15px; margin-bottom:20px; background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #eee; align-items:flex-end; flex-wrap: wrap;">
-                  <div style="flex:1; min-width: 150px;"><label style="font-size:12px; font-weight:bold; color:var(--text-soft);">Filtra Categoria:</label><select id="mat-filtro-categoria" style="margin-top:5px;" onchange="renderTabellaMateriali()"><option value="TUTTE">Tutte</option><option value="Elettronica/Informatica">Elettronica/Informatica</option><option value="Cancelleria">Cancelleria</option><option value="Mobili/Arredi">Mobili/Arredi</option><option value="Materiale Promozionale">Materiale Promozionale</option><option value="Altro">Altro</option></select></div>
-                  <div style="flex:1; min-width: 150px;"><label style="font-size:12px; font-weight:bold; color:var(--text-soft);">Cerca Descrizione:</label><input type="text" id="mat-filtro-desc" placeholder="Cerca..." style="margin-top:5px;" onkeyup="renderTabellaMateriali()"></div>
-                  <div style="flex:1; min-width: 150px;"><label style="font-size:12px; font-weight:bold; color:var(--text-soft);">Filtra Custode:</label><select id="mat-filtro-custode" style="margin-top:5px; width:100%;" onchange="renderTabellaMateriali()"><option value="">Tutti</option></select></div>
+              <div style="flex:2; min-width: 150px;">
+                  <label style="font-size:12px; font-weight:bold;">Beneficiario:</label>
+                  <select id="rimb-filtro-ben" style="margin:0; padding:6px;" onchange="if(typeof applicaFiltriStoricoRimborsi==='function') applicaFiltriStoricoRimborsi()">
+                      <option value="TUTTI">Tutti i Beneficiari</option>
+                  </select>
               </div>
-              <div id="tabella-materiali-container"></div>
+              <div style="flex:2; min-width: 150px;">
+                  <label style="font-size:12px; font-weight:bold;">Segreteria Pagante:</label>
+                  <select id="rimb-filtro-segr" style="margin:0; padding:6px;" onchange="if(typeof applicaFiltriStoricoRimborsi==='function') applicaFiltriStoricoRimborsi()">
+                      <option value="TUTTE">Tutte</option><option value="Nazionale">Nazionale</option><option value="Regionale">Regionale (Tutte)</option><option value="Provinciale">Provinciale (Tutte)</option>
+                  </select>
+              </div>
+          </div>
+          <div id="tabella-storico-rimborsi">Caricamento storico...</div>
+        </div>
+      </div> 
+
+      <div class="container" id="container-materiali" style="display: none;">
+        <div id="sezione-elenco-materiali" class="card" style="display:block;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+             <h3 style="margin:0;">Gestione Materiali <span id="mat-titolo-segr" style="color:var(--danger); font-size: 16px;"></span></h3>
+          </div>
+          <p style="color: #666; font-size: 13px; margin-top:5px;">Registra e gestisci l'inventario dei beni in dotazione.</p>
+
+          <h4 style="color: var(--primary); border-bottom: 2px solid var(--primary); padding-bottom:5px;">Registra Nuovo Materiale</h4>
+          <div style="background-color: #f8f9fa; padding: 15px; border-radius: 4px; border: 1px solid #ddd; margin-bottom: 20px;">
+            <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px;">
+              <div style="flex: 1; min-width: 150px;"><label style="font-size:12px; font-weight:bold;">Categoria:</label>
+                <select id="mat-categoria" style="margin:0; padding:8px;">
+                  <option value="">Seleziona...</option><option value="Elettronica/Informatica">Elettronica/Informatica</option><option value="Cancelleria">Cancelleria</option><option value="Mobili/Arredi">Mobili/Arredi</option><option value="Materiale Promozionale">Materiale Promozionale</option><option value="Altro">Altro</option>
+                </select>
+              </div>
+              <div style="flex: 2; min-width: 200px;"><label style="font-size:12px; font-weight:bold;">Descrizione Bene:</label><input type="text" id="mat-descrizione" placeholder="Es. Stampante Laser..." style="margin:0; padding:8px;"></div>
+              <div style="flex: 1; min-width: 80px;"><label style="font-size:12px; font-weight:bold;">Quantità:</label><input type="number" id="mat-quantita" min="1" value="1" style="margin:0; padding:8px;"></div>
+              <div style="flex: 1; min-width: 100px;"><label style="font-size:12px; font-weight:bold;">Costo Tot. (€):</label><input type="number" step="0.01" min="0" id="mat-costo" placeholder="0.00" style="margin:0; padding:8px;"></div>
+              <div style="flex: 1; min-width: 130px;"><label style="font-size:12px; font-weight:bold;">Data Acquisto:</label><input type="date" id="mat-data" style="margin:0; padding:8px;"></div>
+            </div>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 15px;">
+              <div style="flex: 1; min-width: 200px;"><label style="font-size:12px; font-weight:bold;">Acquistato da:</label>
+                <select id="mat-acquistato-da" style="margin:0; padding:8px;">
+                  <option value="">Seleziona...</option><option value="Segreteria Nazionale">Segreteria Nazionale</option><option value="Segreteria Regionale EMILIA ROMAGNA">Segreteria Regionale EMILIA ROMAGNA</option><option value="Segreteria Provinciale BOLOGNA">Segreteria Provinciale BOLOGNA</option><option value="Segreteria Provinciale FERRARA">Segreteria Provinciale FERRARA</option><option value="Segreteria Provinciale FORLI-CESENA">Segreteria Provinciale FORLI-CESENA</option><option value="Segreteria Provinciale MODENA">Segreteria Provinciale MODENA</option><option value="Segreteria Provinciale PARMA">Segreteria Provinciale PARMA</option><option value="Segreteria Provinciale PIACENZA">Segreteria Provinciale PIACENZA</option><option value="Segreteria Provinciale RAVENNA">Segreteria Provinciale RAVENNA</option><option value="Segreteria Provinciale REGGIO EMILIA">Segreteria Provinciale REGGIO EMILIA</option><option value="Segreteria Provinciale RIMINI">Segreteria Provinciale RIMINI</option>
+                </select>
+              </div>
+              <div style="flex: 1; min-width: 200px;"><label style="font-size:12px; font-weight:bold;">In Carico A (Assegnazione):</label>
+                <select id="mat-in-carico-a" style="margin:0; padding:8px;" onchange="if(typeof aggiornaTendinaCustodi==='function') aggiornaTendinaCustodi()">
+                  <option value="">Seleziona...</option><option value="Segreteria Regionale EMILIA ROMAGNA">Segreteria Regionale EMILIA ROMAGNA</option><option value="Segreteria Provinciale BOLOGNA">Segreteria Provinciale BOLOGNA</option><option value="Segreteria Provinciale FERRARA">Segreteria Provinciale FERRARA</option><option value="Segreteria Provinciale FORLI-CESENA">Segreteria Provinciale FORLI-CESENA</option><option value="Segreteria Provinciale MODENA">Segreteria Provinciale MODENA</option><option value="Segreteria Provinciale PARMA">Segreteria Provinciale PARMA</option><option value="Segreteria Provinciale PIACENZA">Segreteria Provinciale PIACENZA</option><option value="Segreteria Provinciale RAVENNA">Segreteria Provinciale RAVENNA</option><option value="Segreteria Provinciale REGGIO EMILIA">Segreteria Provinciale REGGIO EMILIA</option><option value="Segreteria Provinciale RIMINI">Segreteria Provinciale RIMINI</option>
+                </select>
+              </div>
+              <div style="flex: 1; min-width: 200px;"><label style="font-size:12px; font-weight:bold;">Custode (Seleziona):</label>
+                <select id="mat-custode" style="margin:0; padding:8px;">
+                  <option value="">Prima seleziona 'In Carico A'</option>
+                </select>
+              </div>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: flex-end;">
+              <div style="flex: 1;">
+                <label style="font-size:12px; font-weight:bold; color:var(--primary);">Documento Fiscale / Scontrino (Max 2MB):</label>
+                <input type="file" id="mat-file" accept="application/pdf, image/*" style="margin-top:5px; border: 1px solid #ccc; padding: 5px; width: 100%;">
+              </div>
+              <button class="btn btn-success" id="btn-salva-materiale" style="height: 38px; margin:0;" onclick="if(typeof eseguiSalvaMateriale==='function') eseguiSalvaMateriale()">REGISTRA</button>
             </div>
           </div>
 
-          <div class="container" id="container-rubrica" style="display:none;">
-              <div id="rubrica-dashboard" class="card" style="display:block;">
-                  <h3 class="card-title">Rubrica <button class="btn btn-danger btn-small" style="float:right;" id="admin-rubrica-card" style="display:none;" onclick="mostraRichiesteRubricaAdmin()">AMMINISTRAZIONE <span id="badge-rubrica-admin" class="badge" style="display:none;"></span></button></h3>
-                  <div style="display: flex; gap: 10px; margin-top:20px;">
-                      <button class="btn btn-primary" onclick="apriCategoriaRubrica('INTERNI')">INTERNI (Segreterie)</button><button class="btn btn-primary" onclick="apriCategoriaRubrica('COMANDI')">COMANDI (Arma)</button><button class="btn btn-primary" onclick="apriCategoriaRubrica('LEGALI')">LEGALI E AVVOCATI</button><button class="btn btn-primary" onclick="apriCategoriaRubrica('STAMPA')">STAMPA</button><button class="btn btn-primary" onclick="apriCategoriaRubrica('ALTRI')">ALTRI ENTI</button>
-                  </div>
-              </div>
-              <div id="rubrica-lista" class="card" style="display:none;">
-                  <button class="btn btn-vista btn-small" onclick="tornaRubricaDash()">⬅ TORNA</button>
-                  <h3 class="card-title" style="margin-top:10px;" id="titolo-categoria-rubrica"></h3>
-                  <div style="display:flex; gap:10px; background:#f8f9fa; padding:15px; border-radius:8px;">
-                      <input type="text" id="rubrica-cerca" placeholder="Cerca nome o ruolo..." style="flex:2; margin:0;" onkeyup="filtraContattiVisivi()">
-                      <select id="rubrica-raggruppa" style="flex:1; margin:0;" onchange="filtraContattiVisivi()"><option value="">Nessun Raggruppamento</option><option value="livello">Livello</option><option value="provincia">Provincia</option><option value="compagniaReparto">Reparto</option></select>
-                  </div>
-                  <div id="rubrica-chips-interni" style="display:flex; gap:10px; margin-top:10px; display:none;">
-                      <button class="btn btn-small btn-primary active" onclick="setFiltroChipRubrica('TUTTI', this)">TUTTI</button><button class="btn btn-small" style="background:#ddd; color:black;" onclick="setFiltroChipRubrica('Nazionale', this)">NAZIONALI</button><button class="btn btn-small" style="background:#ddd; color:black;" onclick="setFiltroChipRubrica('Regionale', this)">REGIONALI</button><button class="btn btn-small" style="background:#ddd; color:black;" onclick="setFiltroChipRubrica('Provinciale', this)">PROVINCIALI</button>
-                  </div>
-                  <div id="rubrica-risultati" style="margin-top:20px;"></div>
-              </div>
-              <div id="rubrica-nuovo" class="card" style="display:none;">
-                  <button class="btn btn-vista btn-small" onclick="tornaRubricaDash()">⬅ TORNA</button>
-                  <h3 class="card-title" style="margin-top:10px;">Nuovo Contatto</h3>
-                  <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                     <select id="nuovo-rub-cat" style="flex:1;"><option value="COMANDI">Comandi Arma</option><option value="LEGALI">Legali</option><option value="STAMPA">Stampa</option><option value="ALTRI">Altri</option></select>
-                     <select id="nuovo-rub-tipo" style="flex:1;"><option value="Ufficio">Ufficio</option><option value="Persona">Persona</option></select>
-                     <input type="text" id="nuovo-rub-nome" style="flex:2;" placeholder="Nome (*)">
-                     <input type="text" id="nuovo-rub-ruolo" style="flex:2;" placeholder="Ruolo">
-                  </div>
-                  <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                     <select id="nuovo-rub-livello" style="flex:1;"><option value="">Livello</option><option value="Nazionale">Nazionale</option><option value="Regionale">Regionale</option><option value="Provinciale">Provinciale</option></select>
-                     <input type="text" id="nuovo-rub-provincia" style="flex:1;" placeholder="Provincia">
-                     <input type="text" id="nuovo-rub-reparto" style="flex:1;" placeholder="Reparto">
-                  </div>
-                  <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                     <input type="text" id="nuovo-rub-tel" style="flex:1;" placeholder="Telefono">
-                     <input type="text" id="nuovo-rub-email" style="flex:1;" placeholder="Email">
-                     <input type="text" id="nuovo-rub-pec" style="flex:1;" placeholder="PEC">
-                     <input type="text" id="nuovo-rub-indirizzo" style="flex:2;" placeholder="Indirizzo fisico">
-                  </div>
-                  <input type="text" id="nuovo-rub-note" placeholder="Note per Amministratore">
-                  <button class="btn btn-primary" style="width:100%;" id="btn-salva-rubrica" onclick="salvaNuovoContatto()">SALVA / INVIA PROPOSTA</button>
-                  <p id="msg-rubrica-nuovo"></p>
-              </div>
-              <div id="rubrica-admin-pannello" class="card" style="display:none;">
-                  <button class="btn btn-vista btn-small" onclick="tornaRubricaDash()">⬅ TORNA</button>
-                  <h3 class="card-title" style="margin-top:10px; color:var(--danger-red);">Amministrazione Rubrica</h3>
-                  <div id="rubrica-admin-lista"></div>
+          <div style="display:flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--primary); padding-bottom:5px; margin-bottom: 15px; margin-top:30px;">
+              <h4 style="color: var(--primary); margin:0;">Inventario Materiali</h4>
+              <div id="btn-container-modifica-mat">
+                 <button class="btn btn-danger" style="margin:0;" id="btn-modifica-inventario" onclick="if(typeof toggleEditMateriali==='function') toggleEditMateriali()">MODIFICA INVENTARIO</button>
               </div>
           </div>
 
+          <div style="display:flex; gap:10px; margin-bottom:15px; background: white; padding: 10px; border: 1px solid #ddd; align-items:flex-end; flex-wrap: wrap;">
+              <div style="flex:1; min-width: 150px;">
+                  <label style="font-size:12px; font-weight:bold;">Filtra Categoria:</label>
+                  <select id="mat-filtro-categoria" style="margin:0; padding:6px;" onchange="if(typeof renderTabellaMateriali==='function') renderTabellaMateriali()">
+                      <option value="TUTTE">Tutte</option><option value="Elettronica/Informatica">Elettronica/Informatica</option><option value="Cancelleria">Cancelleria</option><option value="Mobili/Arredi">Mobili/Arredi</option><option value="Materiale Promozionale">Materiale Promozionale</option><option value="Altro">Altro</option>
+                  </select>
+              </div>
+              <div style="flex:1; min-width: 150px;">
+                  <label style="font-size:12px; font-weight:bold;">Cerca Descrizione:</label>
+                  <input type="text" id="mat-filtro-desc" placeholder="Cerca..." style="margin:0; padding:6px;" onkeyup="if(typeof renderTabellaMateriali==='function') renderTabellaMateriali()">
+              </div>
+              <div style="flex:1; min-width: 150px;">
+                  <label style="font-size:12px; font-weight:bold;">Filtra Custode:</label>
+                  <select id="mat-filtro-custode" style="margin:0; padding:6px; width:100%;" onchange="if(typeof renderTabellaMateriali==='function') renderTabellaMateriali()">
+                      <option value="">Tutti</option>
+                  </select>
+              </div>
+          </div>
+          <div id="tabella-materiali-container">Caricamento inventario in corso...</div>
         </div>
       </div>
-    </div>
+
+      <div class="container" id="container-rubrica" style="display: none;">
+        <div id="rubrica-dashboard" class="card" style="display:block; text-align:center; padding-bottom: 40px;">
+          <h3 style="color: var(--primary);">Rubrica Contatti</h3>
+          <p style="color: #666; margin-bottom: 30px;">Seleziona una categoria per visualizzare i contatti o creane uno nuovo.</p>
+          <div style="display: flex; justify-content: center; gap: 15px; flex-wrap: wrap;">
+            <div class="dash-card-small" onclick="if(typeof apriCategoriaRubrica==='function') apriCategoriaRubrica('INTERNI')">INTERNI<br><small style="font-weight:normal; font-size:11px;">Segreterie SIM CC</small></div>
+            <div class="dash-card-small" onclick="if(typeof apriCategoriaRubrica==='function') apriCategoriaRubrica('COMANDI')">COMANDI<br><small style="font-weight:normal; font-size:11px;">Arma e Reparti</small></div>
+            <div class="dash-card-small" onclick="if(typeof apriCategoriaRubrica==='function') apriCategoriaRubrica('LEGALI')">LEGALI<br><small style="font-weight:normal; font-size:11px;">Avvocati e Consulenti</small></div>
+            <div class="dash-card-small" onclick="if(typeof apriCategoriaRubrica==='function') apriCategoriaRubrica('STAMPA')">STAMPA<br><small style="font-weight:normal; font-size:11px;">Testate Giornalistiche</small></div>
+            <div class="dash-card-small" onclick="if(typeof apriCategoriaRubrica==='function') apriCategoriaRubrica('ALTRI')">ALTRI ENTI<br><small style="font-weight:normal; font-size:11px;">Misto</small></div>
+            <div id="admin-rubrica-card" class="dash-card-small" style="display:none; background:#ffb74d; color:white; border:none;" onclick="if(typeof mostraRichiesteRubricaAdmin==='function') mostraRichiesteRubricaAdmin()">
+               AMMINISTRAZIONE<br><small style="font-weight:normal; font-size:11px; color:white;">Richieste Utenti</small>
+               <span id="badge-rubrica-admin" class="badge" style="display:none;">0</span>
+            </div>
+          </div>
+        </div>
+
+        <div id="rubrica-lista" class="card" style="display:none;">
+          <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid var(--primary); padding-bottom:10px; margin-bottom:15px;">
+           <button class="btn btn-vista" style="font-size: 14px; padding: 10px 20px; margin:0;" onclick="if(typeof tornaRubricaDash==='function') tornaRubricaDash()">⬅ TORNA A CATEGORIE</button>
+            <h3 style="margin:0; color: var(--primary);" id="titolo-categoria-rubrica">Categoria</h3>
+          </div>
+          <div style="background: #f8f9fa; padding: 15px; border-left: 5px solid var(--secondary); margin-bottom: 20px; border-radius:4px;">
+            <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+              <div style="flex: 2; min-width: 200px;">
+                <input type="text" id="rubrica-cerca" placeholder="🔍 Cerca per nome, ruolo, email o sede..." style="width: 100%; margin: 0; padding: 10px; font-size: 14px;" onkeyup="if(typeof filtraContattiVisivi==='function') filtraContattiVisivi()">
+              </div>
+              <div style="flex: 1; min-width: 150px; display: flex; align-items: center; gap: 8px;">
+                <label style="font-size:12px; font-weight:bold; white-space:nowrap; margin:0; color:var(--primary);">Raggruppa per:</label>
+                <select id="rubrica-raggruppa" style="margin:0; padding:8px; font-size:13px; width: 100%; border: 1px solid var(--primary);" onchange="if(typeof filtraContattiVisivi==='function') filtraContattiVisivi()">
+                  <option value="">Nessun Raggruppamento</option><option value="livello">Livello (Naz/Reg/Prov)</option><option value="provincia">Provincia</option><option value="compagniaReparto">Compagnia / Reparto</option><option value="sedeUfficio">Sede / Ufficio</option>
+                </select>
+              </div>
+            </div>
+            <div id="rubrica-chips-interni" style="display:none; gap: 10px; flex-wrap: wrap; margin-top: 15px; padding-top:15px; border-top: 1px dashed #ccc;">
+              <span style="font-size:13px; font-weight:bold; margin-right:10px; align-self:center;">Filtra Livello Segreteria:</span>
+              <button class="chip-btn active" onclick="if(typeof setFiltroChipRubrica==='function') setFiltroChipRubrica('TUTTI', this)">TUTTI</button>
+              <button class="chip-btn" onclick="if(typeof setFiltroChipRubrica==='function') setFiltroChipRubrica('Nazionale', this)">NAZIONALE</button>
+              <button class="chip-btn" onclick="if(typeof setFiltroChipRubrica==='function') setFiltroChipRubrica('Regionale', this)">REGIONALE</button>
+              <button class="chip-btn" onclick="if(typeof setFiltroChipRubrica==='function') setFiltroChipRubrica('Provinciale', this)">PROVINCIALE</button>
+            </div>
+          </div>
+          <div id="rubrica-risultati" style="display: flex; flex-wrap: wrap; gap: 15px; justify-content: center;"></div>
+        </div>
+
+        <div id="rubrica-nuovo" class="card" style="display:none;">
+          <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid var(--success); padding-bottom:10px; margin-bottom:15px;">
+            <button class="btn btn-vista" style="font-size: 14px; padding: 10px 20px; margin:0;" onclick="if(typeof tornaRubricaDash==='function') tornaRubricaDash()">⬅ TORNA A CATEGORIE</button>
+            <h3 style="margin:0; color: var(--success);">Aggiungi Contatto</h3>
+          </div>
+          <div style="background: #f8f9fa; padding: 15px; border: 1px solid #ddd; margin-bottom: 20px;">
+            <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
+              <div style="flex:1; min-width:200px;">
+                <label style="font-size:12px; font-weight:bold;">Categoria Principale:</label>
+                <select id="nuovo-rub-cat" style="margin:0;">
+                  <option value="COMANDI">Comandi e Personale Arma</option><option value="LEGALI">Avvocati / Legali</option><option value="STAMPA">Testate Giornalistiche</option><option value="ALTRI">Altri Enti</option>
+                </select>
+              </div>
+              <div style="flex:1; min-width:200px;">
+                <label style="font-size:12px; font-weight:bold;">Tipo Contatto:</label>
+                <select id="nuovo-rub-tipo" style="margin:0;">
+                  <option value="Ufficio">Ufficio / Struttura</option><option value="Persona">Persona Fisica</option>
+                </select>
+              </div>
+            </div>
+            <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
+              <div style="flex:2; min-width:250px;"><label style="font-size:12px; font-weight:bold;">Nome o Denominazione (*):</label><input type="text" id="nuovo-rub-nome" style="margin:0;"></div>
+              <div style="flex:1; min-width:200px;"><label style="font-size:12px; font-weight:bold;">Ruolo / Incarico:</label><input type="text" id="nuovo-rub-ruolo" placeholder="Es. Comandante..." style="margin:0;"></div>
+            </div>
+            <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
+              <div style="flex:1; min-width:150px;">
+                <label style="font-size:12px; font-weight:bold;">Livello:</label>
+                <select id="nuovo-rub-livello" style="margin:0;">
+                   <option value="">(Non specificato)</option><option value="Nazionale">Nazionale</option><option value="Regionale">Regionale</option><option value="Provinciale">Provinciale</option>
+                </select>
+              </div>
+              <div style="flex:1; min-width:150px;"><label style="font-size:12px; font-weight:bold;">Provincia:</label><input type="text" id="nuovo-rub-provincia" style="margin:0;" placeholder="Es. Bologna"></div>
+              <div style="flex:1; min-width:150px;"><label style="font-size:12px; font-weight:bold;">Compagnia / Reparto:</label><input type="text" id="nuovo-rub-reparto" style="margin:0;"></div>
+            </div>
+            <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
+              <div style="flex:1; min-width:150px;"><label style="font-size:12px; font-weight:bold;">Telefono:</label><input type="text" id="nuovo-rub-tel" style="margin:0;"></div>
+              <div style="flex:1; min-width:150px;"><label style="font-size:12px; font-weight:bold;">Email:</label><input type="text" id="nuovo-rub-email" style="margin:0;"></div>
+              <div style="flex:1; min-width:150px;"><label style="font-size:12px; font-weight:bold;">PEC:</label><input type="text" id="nuovo-rub-pec" style="margin:0;"></div>
+            </div>
+            <div style="margin-bottom:10px;">
+              <label style="font-size:12px; font-weight:bold;">Sede / Ufficio (Indirizzo):</label>
+              <input type="text" id="nuovo-rub-indirizzo" style="margin:0;">
+            </div>
+            <div style="margin-bottom:15px;">
+              <label style="font-size:12px; font-weight:bold;">Note Aggiuntive / Messaggio per l'Amministratore:</label>
+              <input type="text" id="nuovo-rub-note" style="margin:0;" placeholder="Spiega brevemente il motivo dell'inserimento...">
+            </div>
+            <button class="btn btn-success" style="width:100%; padding:12px; font-size:15px; margin-top:10px;" id="btn-salva-rubrica" onclick="if(typeof salvaNuovoContatto==='function') salvaNuovoContatto()">INVIA PROPOSTA DI INSERIMENTO</button>
+            <p id="msg-rubrica-nuovo" style="font-weight:bold; margin-top:10px; text-align:center;"></p>
+          </div>
+        </div>
+
+        <div id="rubrica-admin-pannello" class="card" style="display:none;">
+          <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #ffb74d; padding-bottom:10px; margin-bottom:15px;">
+            <button class="btn btn-vista" style="font-size: 14px; padding: 10px 20px; margin:0;" onclick="if(typeof tornaRubricaDash==='function') tornaRubricaDash()">⬅ TORNA A CATEGORIE</button>
+            <h3 style="margin:0; color: #ffb74d;">Amministrazione Richieste Rubrica</h3>
+          </div>
+          <div id="rubrica-admin-lista">Caricamento in corso...</div>
+        </div>
+      </div>
   </div>
 
   <?!= include('JS_Main'); ?>
