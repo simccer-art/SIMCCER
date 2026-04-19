@@ -20,15 +20,64 @@ function inizializzaFormRimborsi() {
 
 function aggiungiRigaTratta() {
     let container = document.getElementById('container-tratte'); let id = Date.now() + Math.floor(Math.random() * 100); let div = document.createElement('div');
-    div.id = 'tratta-' + id; div.style.display = 'flex'; div.style.gap = '10px'; div.style.marginBottom = '10px'; div.style.alignItems = 'flex-end'; div.style.flexWrap = 'wrap';
-    div.innerHTML = `<div style="flex: 1; min-width:130px;"><label style="font-size:11px;">Data Tratta</label><input type="date" class="input-tratta-data" style="margin:0; font-size:14px;"></div><div style="flex: 2; min-width:150px;"><label style="font-size:11px;">Da (Partenza)</label><input type="text" class="input-tratta-partenza" placeholder="Es. Bologna" style="margin:0; font-size:12px; text-transform: uppercase;"></div><div style="flex: 2; min-width:150px;"><label style="font-size:11px;">A (Arrivo)</label><input type="text" class="input-tratta-arrivo" placeholder="Es. Roma" style="margin:0; font-size:12px; text-transform: uppercase;"></div><div style="flex: 1; min-width:80px;"><label style="font-size:11px;">Km</label><input type="number" class="input-tratta-km" min="0" value="0" style="margin:0; font-size:12px;" oninput="calcolaTotaliRimborso()"></div><button class="btn btn-danger btn-small" style="margin:0; height:36px;" onclick="document.getElementById('tratta-${id}').remove(); calcolaTotaliRimborso();">X</button>`;
+    div.id = 'tratta-' + id; div.style.display = 'flex'; div.style.gap = '15px'; div.style.marginBottom = '15px'; div.style.alignItems = 'flex-end'; div.style.flexWrap = 'wrap';
+    
+    // Regola di stile identica e forzata per tutti i campi della riga
+    let commonStyle = "margin-top:5px; width:100%; height:46px; padding:0 12px; border:1px solid #ddd; border-radius:8px; font-size:15px; font-family:inherit; box-sizing:border-box;";
+    
+    div.innerHTML = `
+    <div style="flex: 1; min-width:140px;">
+        <label style="font-size:12px; font-weight:bold; color:var(--text-soft);">Data</label>
+        <input type="date" class="input-tratta-data" style="${commonStyle}">
+    </div>
+    <div style="flex: 2; min-width:160px;">
+        <label style="font-size:12px; font-weight:bold; color:var(--text-soft);">Da (Partenza)</label>
+        <input type="text" class="input-tratta-partenza" placeholder="Es. Bologna" style="${commonStyle} text-transform:uppercase;">
+    </div>
+    <div style="flex: 2; min-width:160px;">
+        <label style="font-size:12px; font-weight:bold; color:var(--text-soft);">A (Arrivo)</label>
+        <input type="text" class="input-tratta-arrivo" placeholder="Es. Roma" style="${commonStyle} text-transform:uppercase;">
+    </div>
+    <div style="flex: 1; min-width:100px;">
+        <label style="font-size:12px; font-weight:bold; color:var(--text-soft);">Km</label>
+        <input type="number" class="input-tratta-km" min="0" value="0" style="${commonStyle}" oninput="calcolaTotaliRimborso()">
+    </div>
+    <button class="btn btn-danger" style="margin-bottom:0; height:46px; padding:0 15px;" onclick="document.getElementById('tratta-${id}').remove(); calcolaTotaliRimborso();">X</button>`;
     container.appendChild(div);
 }
 
 function aggiungiRigaSpesa() {
     let container = document.getElementById('container-spese'); let id = Date.now() + Math.floor(Math.random() * 100); let div = document.createElement('div');
-    div.id = 'spesa-' + id; div.style.display = 'flex'; div.style.gap = '10px'; div.style.marginBottom = '10px'; div.style.alignItems = 'flex-end'; div.style.flexWrap = 'wrap';
-    div.innerHTML = `<div style="flex: 1; min-width:130px;"><label style="font-size:11px;">Data Spesa</label><input type="date" class="input-spesa-data" style="margin:0; font-size:14px;"></div><div style="flex: 2; min-width:120px;"><label style="font-size:11px;">Categoria</label><select class="input-spesa-categoria" style="margin:0; font-size:12px; height:36px;"><option value="Pedaggio Autostradale">Pedaggio Autostradale</option><option value="Treno / Aereo / Nave">Treno / Aereo / Nave</option><option value="Taxi / Trasporti Locali">Taxi / Trasporti Locali</option><option value="Vitto (Pasti)">Vitto (Pasti)</option><option value="Alloggio (Hotel)">Alloggio (Hotel)</option><option value="Altro">Altro</option></select></div><div style="flex: 2; min-width:150px;"><label style="font-size:11px;">Nr. Giustificativo</label><input type="text" class="input-spesa-doc" placeholder="Es. Scontrino n. 12" style="margin:0; font-size:12px; text-transform: uppercase;"></div><div style="flex: 1; min-width:80px;"><label style="font-size:11px;">Importo (€)</label><input type="number" class="input-spesa-importo" min="0" step="0.01" value="0.00" style="margin:0; font-size:12px;" oninput="calcolaTotaliRimborso()"></div><button class="btn btn-danger btn-small" style="margin:0; height:36px;" onclick="document.getElementById('spesa-${id}').remove(); calcolaTotaliRimborso();">X</button>`;
+    div.id = 'spesa-' + id; div.style.display = 'flex'; div.style.gap = '15px'; div.style.marginBottom = '15px'; div.style.alignItems = 'flex-end'; div.style.flexWrap = 'wrap';
+    
+    // Regola di stile identica e forzata per tutti i campi della riga
+    let commonStyle = "margin-top:5px; width:100%; height:46px; padding:0 12px; border:1px solid #ddd; border-radius:8px; font-size:15px; font-family:inherit; box-sizing:border-box;";
+    
+    div.innerHTML = `
+    <div style="flex: 1; min-width:140px;">
+        <label style="font-size:12px; font-weight:bold; color:var(--text-soft);">Data</label>
+        <input type="date" class="input-spesa-data" style="${commonStyle}">
+    </div>
+    <div style="flex: 2; min-width:160px;">
+        <label style="font-size:12px; font-weight:bold; color:var(--text-soft);">Categoria</label>
+        <select class="input-spesa-categoria" style="${commonStyle}">
+            <option value="Pedaggio Autostradale">Pedaggio Autostradale</option>
+            <option value="Treno / Aereo / Nave">Treno / Aereo / Nave</option>
+            <option value="Taxi / Trasporti Locali">Taxi / Trasporti Locali</option>
+            <option value="Vitto (Pasti)">Vitto (Pasti)</option>
+            <option value="Alloggio (Hotel)">Alloggio (Hotel)</option>
+            <option value="Altro">Altro</option>
+        </select>
+    </div>
+    <div style="flex: 2; min-width:160px;">
+        <label style="font-size:12px; font-weight:bold; color:var(--text-soft);">Nr. Giustificativo</label>
+        <input type="text" class="input-spesa-doc" placeholder="Es. Scontrino 12" style="${commonStyle} text-transform:uppercase;">
+    </div>
+    <div style="flex: 1; min-width:100px;">
+        <label style="font-size:12px; font-weight:bold; color:var(--text-soft);">Importo (€)</label>
+        <input type="number" class="input-spesa-importo" min="0" step="0.01" value="0.00" style="${commonStyle}" oninput="calcolaTotaliRimborso()">
+    </div>
+    <button class="btn btn-danger" style="margin-bottom:0; height:46px; padding:0 15px;" onclick="document.getElementById('spesa-${id}').remove(); calcolaTotaliRimborso();">X</button>`;
     container.appendChild(div);
 }
 

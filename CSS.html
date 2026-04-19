@@ -1,89 +1,217 @@
 <style>
+    /* ==========================================
+       1. NUOVE VARIABILI COLORE (PALETTE TARGET)
+       ========================================== */
     :root {
-      --bg-color: #f4f6f8; 
-      --primary: #8aacc8; 
-      --secondary: #d4a373;
-      --text-main: #333333; 
-      --box-bg: #ffffff; 
-      --danger: #dc3545; 
-      --success: #28a745;
-      --warning: #ffc107; 
-      --evadi: #007bff; 
-      --fruito: #800080; 
-      --vista: #219ebc; 
-      --gray-blue: #6c8ca6;
-      --pagato: #fd7e14;
-      --warning-soft: #ffb74d;
+      /* Sfondo generale applicazione */
+      --bg-main: #f4f6f8; 
+      
+      /* Sidebar (Menu Sinistro) */
+      --sidebar-bg: #0a1f33; /* Blu Notte Scuro */
+      --sidebar-text: #c0c0c0; /* Grigio Silver per voci inattive */
+      --sidebar-text-active: #ffffff; /* Bianco per voce attiva */
+      --sidebar-active-item: #1a4b84; /* Blu Acceso per evidenziare la voce attiva */
+      
+      /* Header Top */
+      --header-bg: #ffffff;
+      
+      /* Colore Primario (Bottoni principali, highlights calendario) */
+      --primary: #2d74b3; /* Blu Intenso Target */
+      
+      /* Colore Accento Danger (Bottoni Rossi, grafici consumi) */
+      --danger-red: #a62b2b; /* Rosso Scuro Target */
+      
+      /* Testi Generali */
+      --text-main: #333333;
+      --text-soft: #666666; /* Grigio per sottotitoli */
+      
+      /* Card e Contenitori */
+      --card-bg: #ffffff;
+      
+      /* Variabili Utility (lasciate per retrocompatibilità) */
+      --box-bg: #ffffff;
+      --evadi: var(--primary);
+      --fruito: var(--danger-red);
+      --pagato: var(--danger-red);
+      --gray-blue: var(--text-soft);
     }
-    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg-color); color: var(--text-main); margin: 0; padding: 0; }
+
+    /* ==========================================
+       2. RESET E BASE
+       ========================================== */
+    * { box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: var(--bg-main); color: var(--text-main); margin: 0; padding: 0; overflow: hidden; height: 100vh; }
+
+    /* ==========================================
+       3. LAYOUT PRINCIPALE (SIDEBAR + MAIN)
+       ========================================== */
+    .app-wrapper { display: flex; height: 100vh; width: 100vw; }
     
-    .btn { background-color: var(--primary); color: white; border: none; padding: 10px 15px; font-size: 14px; cursor: pointer; border-radius: 0px; font-weight: bold; transition: 0.3s; margin-right: 5px; margin-bottom: 5px; position: relative; overflow: visible; }
-    .btn:hover { filter: brightness(0.9); }
-    .btn-danger { background-color: var(--danger); }
-    .btn-success { background-color: var(--success); }
-    .btn-vista { background-color: var(--vista); color: white; }
-    .btn-lettera { background-color: var(--danger); color: white; }
-    .btn-evadi { background-color: var(--evadi); color: white; }
-    .btn-pagato { background-color: var(--pagato); color: white; }
-    .btn-fruito { background-color: var(--fruito); color: white; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.2);} 
+    /* SIDEBAR (Menu Sinistro Scuro) */
+    #sidebar { width: 220px; background-color: var(--sidebar-bg); flex-shrink: 0; display: flex; flex-direction: column; }
+    .sidebar-logo-container { padding: 15px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.05); }
+    .sidebar-logo { max-width: 100%; height: auto; }
+    .sidebar-menu { flex: 1; padding-top: 15px; }
+    
+    /* Voci del Menu */
+    .menu-item { display: flex; align-items: center; padding: 12px 20px; color: var(--sidebar-text); text-decoration: none; cursor: pointer; transition: 0.2s; font-size: 14px; }
+    .menu-item:hover { background-color: rgba(255,255,255,0.03); color: var(--sidebar-text-active); }
+    
+    /* Icone (Placeholder semplici) */
+    .menu-icon { margin-right: 12px; font-size: 16px; width: 20px; text-align: center; opacity: 0.8; }
+    
+    /* Voce Attiva (Evidenziata in Blu) */
+    .menu-item.active { background-color: var(--sidebar-active-item); color: var(--sidebar-text-active); font-weight: bold; border-left: 4px solid #fff; }
+    .menu-item.active .menu-icon { opacity: 1; }
+
+    /* Footer del Sidebar (Profilo, Esci) */
+    .sidebar-footer { border-top: 1px solid rgba(255,255,255,0.05); margin-top: auto; }
+
+    /* ZONA CONTENUTO PRINCIPALE (Header + Body) */
+    #main-content { flex: 1; display: flex; flex-direction: column; background-color: var(--bg-main); overflow: hidden; }
+    
+    /* HEADER TOP (Bianco) */
+    #app-header { background-color: var(--header-bg); height: 60px; display: flex; align-items: center; justify-content: space-between; padding: 0 30px; border-bottom: 1px solid #ddd; flex-shrink: 0; }
+    .app-title { font-size: 18px; font-weight: bold; color: var(--text-main); margin: 0; text-transform: uppercase;}
+    .user-info { font-size: 14px; display: flex; align-items: center; }
+    .user-avatar { width: 32px; height: 32px; border-radius: 50%; background-color: #ddd; margin-left: 10px; display: flex; align-items: center; justify-content: center; font-size: 12px; color: var(--text-soft); }
+
+    /* BODY CONTENUTO (Zona grigia dove appaiono i moduli) */
+    #content-body { flex: 1; padding: 30px; overflow-y: auto; }
+    #main-ui { display: block; } /* Il contenitore globale non deve nascondersi */
+
+    /* ==========================================
+       4. ELEMENTI GRAFICI COMUNI (CARD E BOTTONI)
+       ========================================== */
+    
+    /* Container Generali (Permessi, Visite, ecc.) */
+    .container { padding: 0; } /* Reset vecchi margini */
+    
+    /* Card (Sfondo Bianco, Ombra, Spigoli Arrotondati) */
+    .card { background: var(--card-bg); border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border: 1px solid #e1e4e8; padding: 25px; margin-bottom: 25px; display: none; }
+    
+    /* Titoli Schede */
+    .card-title { color: var(--text-main); font-size: 16px; margin-top: 0; margin-bottom: 15px; border-bottom: 2px solid var(--bg-main); padding-bottom: 5px; font-weight: bold;}
+    
+    /* BOTTONI TARGET */
+    .btn { border: none; padding: 10px 18px; font-size: 14px; cursor: pointer; border-radius: 4px; font-weight: 500; transition: 0.2s; position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+    .btn:hover { filter: brightness(0.95); }
+    .btn:active { transform: translateY(1px); }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    
+    /* Colore Primario (Blu) */
+    .btn-primary, .btn.btn-vista, .btn.btn-evadi { background-color: var(--primary); color: white; }
+    
+    /* Colore Danger (Rosso) */
+    .btn-danger, .btn.btn-lettera, .btn.btn-fruito { background-color: var(--danger-red); color: white; }
+    
+    /* Bottoni Piccoli per azioni in tabella */
     .btn-small { padding: 5px 10px; font-size: 12px; }
-    .btn-attivo { background-color: #1a4b84 !important; color: white !important; pointer-events: none; }
-    .btn:disabled { background-color: #cccccc; cursor: not-allowed; opacity: 0.7; }
-    
-    .btn-rubrica-azione { display: block; width: 100%; padding: 5px 0; margin-bottom: 4px; font-size: 11px; font-weight: normal; text-decoration: none !important; text-align: center; border-radius: 4px; cursor: pointer; background-color: transparent; transition: all 0.2s ease-in-out; box-sizing: border-box; border: 1px solid #ccc; }
-    .btn-out-vista   { border-color: var(--vista); color: var(--vista) !important; }
-    .btn-out-gray    { border-color: var(--gray-blue); color: var(--gray-blue) !important; }
-    .btn-out-warn    { border-color: #ffb74d; color: #ffb74d !important; }
-    .btn-out-danger  { border-color: var(--danger); color: var(--danger) !important; }
-    .btn-rubrica-azione:hover { font-weight: bold !important; background-color: rgba(0, 0, 0, 0.02); }
-    .btn-out-darkblue { border: 1px solid #000080; color: #000080 !important; }
-    .btn-out-darkblue:hover { border-width: 2px; border-color: #000050; color: #000050 !important; }
-    .btn-out-vista:hover  { border-width: 2px; border-color: #023e8a; color: #023e8a !important; }
-    .btn-out-gray:hover   { border-width: 2px; border-color: #334155; color: #334155 !important; }
-    .btn-out-warn:hover   { border-width: 2px; border-color: #e67e22; color: #e67e22 !important; }
-    .btn-out-danger:hover { border-width: 2px; border-color: #991b1b; color: #991b1b !important; }
-    .btn-outline-custom { background-color: transparent; color: var(--gray-blue); border: 2px solid var(--gray-blue); border-radius: 4px; padding: 8px 20px; display: block; margin: 20px auto 0 auto; width: fit-content; font-weight: bold; cursor: pointer; transition: 0.3s; }
-    .btn-outline-custom:hover { background-color: var(--gray-blue); color: white; }
-    
-    .badge { position: absolute; top: -6px; right: -6px; background-color: var(--danger); color: white; border-radius: 50%; width: 18px; height: 18px; font-size: 11px; font-weight: bold; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.3); z-index: 10; }
-    .badge-dash { position: absolute; top: -10px; right: -10px; background-color: var(--danger); color: white; border-radius: 50%; width: 25px; height: 25px; font-size: 13px; font-weight: bold; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 6px rgba(0,0,0,0.4); z-index: 10; border: 2px solid white; }
-    .notifica-banner { background-color: #fff3cd; border-left: 5px solid #ffc107; padding: 15px; margin-bottom: 20px; font-size: 14px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-    #toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 9999; }
-    .toast { background: #333; color: #fff; padding: 15px 20px; border-radius: 4px; margin-top: 10px; opacity: 0; transition: opacity 0.5s; box-shadow: 0 4px 6px rgba(0,0,0,0.3); font-size: 14px; border-left: 5px solid var(--success); }
-    .toast.show { opacity: 1; }
 
-    .dash-card { background: var(--box-bg); border-top: 5px solid var(--primary); box-shadow: 0 4px 6px rgba(0,0,0,0.1); padding: 30px; width: 200px; border-radius: 8px; cursor: pointer; transition: 0.3s; font-weight: bold; font-size: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100px; text-align: center; position: relative; }
-    .dash-card:hover { transform: translateY(-5px); box-shadow: 0 8px 15px rgba(0,0,0,0.2); background-color: var(--primary); color: white; }
-
-    input[type="text"], input[type="number"], input[type="password"], input[type="date"], select { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 0px; box-sizing: border-box; font-family: inherit; }
-    input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; }
+    /* ==========================================
+       5. TABELLE E DATI
+       ========================================== */
+    table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+    th, td { padding: 12px 15px; text-align: left; font-size: 14px; border-bottom: 1px solid #e1e4e8; }
+    th { font-weight: bold; color: var(--text-soft); }
     
+    /* Vecchi placeholder notifiche rossi */
+    .badge, .badge-dash { position: static; background-color: var(--danger-red); color: white; border-radius: 50%; width: 18px; height: 18px; font-size: 11px; font-weight: bold; display: inline-flex; align-items: center; justify-content: center; margin-left: 5px; border: none;}
+    
+    /* ==========================================
+       6. ADATTAMENTO VECCHIA DASHBOARD
+       ========================================== */
+    #dashboard-section { display: none; } /* Verrà gestita dal JS */
+    #dashboard-cards, #dashboard-cards-row2 { display: flex; justify-content: flex-start; gap: 20px; flex-wrap: wrap; margin-top: 20px; }
+    
+    /* Trasformazione vecchie Dashboard-Card in Card standard */
+    .dash-card, .dash-card-small { background: var(--card-bg); border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border: 1px solid #e1e4e8; padding: 25px; width: 230px; height: auto; text-align: left; align-items: flex-start; justify-content: flex-start; cursor: pointer; transition: 0.3s; font-size: 14px; font-weight: bold; color: var(--text-main); position: relative;}
+    .dash-card:hover { transform: translateY(-3px); box-shadow: 0 8px 15px rgba(0,0,0,0.1); background-color: #fafafa; }
+    
+    /* placeholder per grafici e tabelle vecchie */
     #login-section { max-width: 400px; margin: 100px auto; background: var(--box-bg); padding: 30px; border-top: 5px solid var(--primary); box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-    #app-header { background-color: var(--box-bg); padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid var(--secondary); flex-wrap: wrap; gap: 10px;}
-    .header-info span { margin-right: 15px; font-size: 14px; }
-    #main-ui { display: none; }
-    #dashboard-section { text-align: center; padding: 50px; } 
+
+    /* FORZATURA STILE - FONT 14px E MASSIMA COMPATTEZZA VERTICALE */
+    input[type="text"], 
+    input[type="password"], 
+    input[type="date"], 
+    input[type="number"], 
+    select { 
+        width: 100%; 
+        padding: 4px 10px !important; 
+        margin: 1px 0 4px 0 !important; 
+        border: 1px solid #ccc !important; 
+        border-radius: 4px !important; 
+        font-size: 14px !important; /* Aumentato di un punto come richiesto */
+        font-family: 'Segoe UI', Roboto, Arial, sans-serif !important;
+        box-sizing: border-box !important;
+        height: 34px !important; /* Leggermente aumentato per ospitare il font più grande */
+        color: var(--text-main);
+        background-color: white;
+        display: block;
+    }
+
+    /* Etichette compatte */
+    label {
+        font-size: 11px !important; /* Proporzionato al font 14px */
+        font-weight: 700 !important;
+        text-transform: uppercase;
+        color: var(--text-soft);
+        margin-bottom: 0px !important;
+        display: inline-block;
+        line-height: 1.2 !important;
+    }
+
+    /* ELIMINAZIONE SPAZIO TRA TITOLI SEZIONI E CAMPI SOTTOSTANTI */
+    #sezione-componi-rimborso h4 {
+        margin-top: 10px !important;   /* Ridotto spazio sopra i titoli A e B */
+        margin-bottom: 5px !important;  /* Quasi azzerato lo spazio sotto il titolo */
+        padding-bottom: 5px !important;
+        font-size: 15px !important;
+    }
+
+    /* Riduzione spazio tra le file (flex rows) */
+    #sezione-componi-rimborso div[style*="display:flex"] {
+        gap: 8px !important;
+        margin-bottom: 5px !important; /* Stringe la distanza tra una riga e l'altra */
+    }
+
+    #login-container input {
+        margin-bottom: 20px !important; /* Spazio generoso tra password e tasto */
+        margin-top: 10px !important;
+    }
+
+    #login-container button {
+        margin-top: 10px !important;
+    }
+
+    /* Rimuove freccette numeri */
+    input[type="number"]::-webkit-inner-spin-button, 
+    input[type="number"]::-webkit-outer-spin-button { 
+        -webkit-appearance: none; 
+        margin: 0; 
+    }
+
+    /* Stringe lo spazio delle etichette (Label) */
+    label {
+        font-size: 11px !important;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 0px !important;
+        display: inline-block;
+    }
+
+    /* Rimuove le freccette antiestetiche dai campi numerici */
+    input[type="number"]::-webkit-inner-spin-button, 
+    input[type="number"]::-webkit-outer-spin-button { 
+        -webkit-appearance: none; 
+        margin: 0; 
+    }
     
-    .container { padding: 20px 30px; }
-    .card { background: var(--box-bg); padding: 20px; margin-bottom: 20px; border-left: 5px solid var(--primary); display: none; }
-    table { border-collapse: collapse; margin-top: 15px; width: 100%; } 
-    th, td { border: 1px solid #ddd; padding: 10px; text-align: left; font-size: 14px; vertical-align: middle;} 
-    th { background-color: var(--primary); color: white; }
-    
-    .box-statistiche { background-color: #f8f9fa; padding: 15px; border-left: 5px solid var(--secondary); margin-bottom: 20px; font-size: 15px;} 
-    .box-statistiche ul { margin: 10px 0 0 0; padding-left: 20px;}
-    ul.lista-bozza { list-style-type: none; padding: 0; margin-top: 15px; } 
-    ul.lista-bozza li { background-color: #f1f3f5; padding: 10px; margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid var(--primary); }
-    .row-gruppo { background-color: #e9ecef; font-weight: bold; } 
-    .row-figlio td:first-child { padding-left: 30px; border-left: 3px solid var(--primary); }
-    
-    .profilo-img-container { width: 120px; height: 120px; border-radius: 50%; background-color: var(--primary); margin: 0 auto 25px auto; overflow: hidden; border: 3px solid var(--secondary); display: flex; align-items: center; justify-content: center; cursor: pointer; }
-    .profilo-img { width: 100%; height: 100%; object-fit: cover; display: none; }
-    .profilo-img-placeholder { color: white; font-size: 14px; font-weight:bold; }
-  
-    .dash-card-small { background: var(--box-bg); border-top: 4px solid var(--primary); box-shadow: 0 2px 4px rgba(0,0,0,0.1); padding: 15px; width: 140px; border-radius: 6px; cursor: pointer; transition: 0.3s; font-weight: bold; font-size: 13px; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 80px; text-align: center; }
-    .dash-card-small:hover { transform: translateY(-3px); box-shadow: 0 6px 12px rgba(0,0,0,0.15); background-color: var(--primary); color: white; }
-    .chip-btn { padding: 8px 15px; border-radius: 20px; border: 1px solid var(--primary); background: white; color: var(--primary); cursor: pointer; font-size: 12px; font-weight: bold; transition: 0.2s; }
-    .chip-btn:hover { background: #eef2f5; }
-    .chip-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+    /* Rimuove le freccette antiestetiche dai campi numerici nei browser basati su webkit */
+    input[type="number"]::-webkit-inner-spin-button, 
+    input[type="number"]::-webkit-outer-spin-button { 
+        -webkit-appearance: none; 
+        margin: 0; 
+    }
 </style>

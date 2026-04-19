@@ -12,7 +12,8 @@ const FOLDER_MATERIALI_DOCS_ID = '1yycGzRe2WeY3_iywhC5y1OTlAzJgSHU8';
 
 // ================= FUNZIONI DI BASE ================= //
 function doGet() { 
-  return HtmlService.createHtmlOutputFromFile('Index')
+  return HtmlService.createTemplateFromFile('Index') // <--- Qui la magia: createTemplate al posto di createHtmlOutput
+    .evaluate() // <--- Questo comando dice a Google di eseguire i tag <?!= ?>
     .setTitle('Gestionale SIM CC ER')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL); 
 }
