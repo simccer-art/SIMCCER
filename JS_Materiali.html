@@ -1,0 +1,193 @@
+<script>
+// ==========================================
+// FUNZIONI GESTIONE MATERIALI
+// ==========================================
+
+let datiMaterialiCache = null; let utentiMatCache = []; let isMatEditMode = false;
+
+function caricaDatiMateriali() {
+    document.getElementById('tabella-materiali-container').innerHTML = "Caricamento inventario in corso...";
+    let segrMat = "Tutte le Segreterie (Admin)"; let ruoloStrMat = String(utenteCorrente.ruolo || "").toUpperCase();
+    if (!ruoloStrMat.includes('AMMINISTRATORE')) {
+        if (ruoloStrMat.includes('MAT') && !ruoloStrMat.includes('MAT2')) segrMat = "Regionale EMILIA ROMAGNA";
+        else if (ruoloStrMat.includes('MAT2')) segrMat = "Provinciale " + utenteCorrente.provincia;
+    }
+    let elCompetenza = document.getElementById('mat-titolo-segr');
+    if (elCompetenza) elCompetenza.innerText = segrMat !== "Tutte le Segreterie (Admin)" ? "(" + segrMat + ")" : "";
+
+    google.script.run.withSuccessHandler(res => {
+        datiMaterialiCache = res.materiali || []; utentiMatCache = res.utentiMat || []; isMatEditMode = false;
+        let oggi = new Date(); document.getElementById('mat-data').value = oggi.getFullYear() + "-" + String(oggi.getMonth() + 1).padStart(2, '0') + "-" + String(oggi.getDate()).padStart(2, '0');
+        
+        let selFiltroCustode = document.getElementById('mat-filtro-custode');
+        if (selFiltroCustode) {
+            let opzioniHTML = '<option value="">Tutti i Custodi</option>'; let nomiCustodi = [];
+            utentiMatCache.forEach(u => { let nc = (u.cognome + " " + u.nome).trim(); if(nc && !nomiCustodi.includes(nc)) nomiCustodi.push(nc); });
+            datiMaterialiCache.forEach(m => { let cust = (m.custode || "").trim(); if (cust && !nomiCustodi.includes(cust)) nomiCustodi.push(cust); });
+            nomiCustodi.sort().forEach(nome => { opzioniHTML += `<option value="${nome}">${nome}</option>`; });
+            selFiltroCustode.innerHTML = opzioniHTML;
+        }
+        renderTabellaMateriali();
+    }).withFailureHandler(err => { alert("Errore nel caricamento dei dati materiali: " + err.message); }).getDatiMateriali(utenteCorrente);
+}
+
+function aggiornaTendinaCustodi(rigaEdit = null) {
+    let inCaricoA = rigaEdit ? document.getElementById('em-mat-incarico-'+rigaEdit).value : document.getElementById('mat-in-carico-a').value;
+    let selectCustode = rigaEdit ? document.getElementById('em-mat-custode-'+rigaEdit) : document.getElementById('mat-custode');
+    selectCustode.innerHTML = '<option value="">Seleziona Custode...</option>';
+    if (!inCaricoA) return;
+
+    let custodiFiltrati = utentiMatCache;
+    custodiFiltrati.sort((a,b) => (a.cognome + " " + a.nome).localeCompare(b.cognome + " " + b.nome));
+    custodiFiltrati.forEach(u => {
+        let nomeCompleto = u.cognome + " " + u.nome;
+        selectCustode.innerHTML += `<option value="${nomeCompleto}">${nomeCompleto} (${u.provincia})</option>`;
+    });
+}
+
+function renderTabellaMateriali() {
+    if (!datiMaterialiCache) return;
+    let filtroCat = document.getElementById('mat-filtro-categoria').value; let filtroDesc = document.getElementById('mat-filtro-desc').value.toLowerCase();
+    let elCustode = document.getElementById('mat-filtro-custode'); let filtroCustode = elCustode ? elCustode.value.toLowerCase() : "";
+    let isEdit = isMatEditMode;
+    
+    let btnHtml = isEdit ? `<button class="btn btn-success" style="margin:0;" onclick="salvaModificheMateriali()">SALVA MODIFICHE TESTO</button> <button class="btn btn-danger" style="margin:0;" onclick="toggleEditMateriali()">ANNULLA</button>` : `<button class="btn btn-danger" style="margin:0;" id="btn-modifica-inventario" onclick="toggleEditMateriali()">MODIFICA INVENTARIO</button>`;
+    document.getElementById('btn-container-modifica-mat').innerHTML = btnHtml;
+
+    let html = `<table style="font-size:13px; width:100%;"><tr><th style="width:3%;">N.</th><th>Data Acq.</th><th>Categoria</th><th>Descrizione</th><th>Qtà / Costo</th><th>Acquistato Da</th><th>In carico a</th><th>Custode</th><th>Doc</th>${isEdit ? '<th>Azioni</th>' : ''}</tr>`;
+    let prog = 1; let filtrati = 0;
+    let optAcqDa = document.getElementById('mat-acquistato-da').innerHTML; let optInCaricoA = document.getElementById('mat-in-carico-a').innerHTML; let optCat = document.getElementById('mat-categoria').innerHTML;
+
+    try {
+        datiMaterialiCache.forEach(m => {
+            let matchCat = (filtroCat === 'TUTTE' || m.categoria === filtroCat); let safeDescSearch = m.descrizione ? String(m.descrizione).toLowerCase() : ""; let matchDesc = (filtroDesc === "" || safeDescSearch.includes(filtroDesc));
+            let safeCustSearch = m.custode ? String(m.custode).toLowerCase() : ""; let matchCust = (filtroCustode === "" || safeCustSearch.includes(filtroCustode));
+            if (matchCat && matchDesc && matchCust) {
+                filtrati++;
+                if(isEdit) {
+                    let safeCat = m.categoria ? String(m.categoria) : ""; let cCat = optCat.replace(`value="${safeCat}"`, `value="${safeCat}" selected`);
+                    let safeAcq = m.acquistatoDa ? String(m.acquistatoDa) : ""; let cAcq = optAcqDa.replace(`value="${safeAcq}"`, `value="${safeAcq}" selected`);
+                    let safeInc = m.inCaricoA ? String(m.inCaricoA) : ""; let cInc = optInCaricoA.replace(`value="${safeInc}"`, `value="${safeInc}" selected`);
+                    let safeCustode = m.custode ? String(m.custode) : ""; let optCustode = `<option value="${safeCustode}" selected>${safeCustode}</option>`;
+                    let safeDesc = m.descrizione ? String(m.descrizione).replace(/"/g, '&quot;') : "";
+                    
+                    let docHtml = m.fileUrl ? `<div style="margin-bottom:5px;"><a href="${m.fileUrl}" target="_blank" style="font-size:11px; color:var(--primary); font-weight:bold; text-decoration:none;">Vedi Attuale</a><br><button class="btn btn-danger btn-small" style="padding:2px 5px; margin:0; margin-top:3px; font-size:9px;" onclick="eliminaSoloDoc('${m.fileId}', ${m.riga}, '${m.inCaricoA}')">ELIMINA DOC</button></div>` : `<div style="font-size:10px; color:#999; margin-bottom:5px;">Nessun Doc</div>`;
+                    docHtml += `<label style="font-size:9px; cursor:pointer; background:var(--vista); color:white; padding:4px 6px; border-radius:3px; display:inline-block; text-align:center;">${m.fileUrl ? "SOSTITUISCI" : "CARICA FILE"}<input type="file" style="display:none;" accept="application/pdf, image/*" onchange="sostituisciDoc(this, '${m.fileId}', ${m.riga}, '${m.inCaricoA}')"></label>`;
+
+                    html += `<tr class="edit-mat-row" data-riga="${m.riga}" data-fileid="${m.fileId}">
+                        <td>${prog++}</td><td><input type="date" id="em-mat-data-${m.riga}" value="${m.dataAcquistoIso}" style="width:105px; padding:4px; margin:0; font-size:12px;"></td>
+                        <td><select id="em-mat-cat-${m.riga}" style="width:110px; padding:4px; margin:0; font-size:12px;">${cCat}</select></td>
+                        <td><input type="text" id="em-mat-desc-${m.riga}" value="${safeDesc}" style="width:100%; padding:4px; margin:0; font-size:12px;"></td>
+                        <td><input type="number" id="em-mat-qta-${m.riga}" value="${m.quantita}" style="width:40px; padding:4px; margin:0; font-size:12px;" title="Qtà"><input type="number" step="0.01" id="em-mat-costo-${m.riga}" value="${m.costo}" style="width:60px; padding:4px; margin:0; font-size:12px;" title="Costo €"></td>
+                        <td><select id="em-mat-acq-${m.riga}" style="width:110px; padding:4px; margin:0; font-size:12px;">${cAcq}</select></td>
+                        <td><select id="em-mat-incarico-${m.riga}" style="width:110px; padding:4px; margin:0; font-size:12px;" onchange="aggiornaTendinaCustodi(${m.riga})">${cInc}</select></td>
+                        <td><select id="em-mat-custode-${m.riga}" style="width:110px; padding:4px; margin:0; font-size:12px;">${optCustode}</select></td>
+                        <td style="text-align:center; vertical-align:middle; width:10%;">${docHtml}</td>
+                        <td style="text-align:center;"><button class="btn btn-danger btn-small" style="margin:0;" onclick="eliminaMateriale('${m.fileId}', ${m.riga})" title="Elimina Riga Intera">X</button></td>
+                    </tr>`;
+                } else {
+                    let btnDoc = m.fileUrl ? `<a href="${m.fileUrl}" target="_blank" class="btn btn-vista btn-small" style="margin:0;">DOC</a>` : `<span style="color:#999; font-size:11px;">-</span>`;
+                    let dArr = m.dataAcquistoIso.split('-'); let dShow = `${dArr[2]}/${dArr[1]}/${dArr[0]}`;
+                    html += `<tr><td>${prog++}</td><td style="width:8%;">${dShow}</td><td style="width:12%;"><b style="color:var(--primary);">${m.categoria}</b></td>
+                        <td style="width:25%;">${m.descrizione}</td><td style="width:10%;">Qtà: <b>${m.quantita}</b><br>€ <b>${m.costo.toFixed(2)}</b></td>
+                        <td style="width:12%; font-size:11px;">${m.acquistatoDa}</td><td style="width:12%; font-size:11px; color:var(--danger);">${m.inCaricoA}</td>
+                        <td style="width:15%;">${m.custode}</td><td style="text-align:center; width:5%;">${btnDoc}</td>
+                    </tr>`;
+                }
+            }
+        });
+    } catch (err) { html += `<tr><td colspan="10" style="color:red; text-align:center;">Errore interno nei dati.</td></tr>`; }
+    
+    if (filtrati === 0) html += `<tr><td colspan="${isEdit?10:9}" style="text-align:center;">Nessun materiale trovato.</td></tr>`; html += `</table>`;
+    document.getElementById('tabella-materiali-container').innerHTML = html;
+    
+    if(isEdit) {
+        try {
+            datiMaterialiCache.forEach(m => {
+                if(document.getElementById('em-mat-incarico-'+m.riga)) {
+                    aggiornaTendinaCustodi(m.riga); let sel = document.getElementById('em-mat-custode-'+m.riga); let safeCustode = m.custode ? String(m.custode) : "";
+                    if(sel.innerHTML.includes(`value="${safeCustode}"`)) sel.value = safeCustode; else { sel.innerHTML += `<option value="${safeCustode}" selected>${safeCustode} (Attuale)</option>`; sel.value = safeCustode; }
+                }
+            });
+        } catch(e) {}
+    }
+}
+
+function eliminaSoloDoc(fileId, riga, segreteria) {
+    if(!confirm("Vuoi davvero rimuovere il documento associato a questa voce? Verrà spostato nel Cestino.")) return;
+    showToast("Spostamento documento nel cestino...");
+    google.script.run.withSuccessHandler(res => { if(res.success) { showToast("Documento rimosso e cestinato."); caricaDatiMateriali(); } else alert("Errore: " + res.error); }).eliminaDocumentoMateriale(fileId, riga, segreteria);
+}
+
+function sostituisciDoc(inputElem, fileId, riga, segreteria) {
+    let file = inputElem.files[0]; if(!file) return;
+    if(file.size > 2 * 1024 * 1024) { alert("Il file supera i 2 MB."); inputElem.value = ""; return; }
+    
+    let label = inputElem.parentElement; let originalHTML = label.innerHTML; label.innerHTML = "CARICAMENTO..."; label.style.background = "#666";
+    let reader = new FileReader();
+    reader.onload = function(e) {
+        let base64 = e.target.result.split(',')[1];
+        google.script.run.withSuccessHandler(res => {
+            if(res.success) { showToast("Documento aggiornato con successo!"); caricaDatiMateriali(); } 
+            else { alert("Errore durante l'upload: " + res.error); label.innerHTML = originalHTML; label.style.background = "var(--vista)"; }
+        }).sostituisciDocumentoMateriale(fileId, riga, segreteria, base64, file.type, file.name);
+    }; reader.readAsDataURL(file);
+}
+
+function toggleEditMateriali() { isMatEditMode = !isMatEditMode; renderTabellaMateriali(); }
+
+function salvaModificheMateriali() {
+    let righe = document.querySelectorAll('.edit-mat-row'); let modifiche = []; let hasErrors = false;
+    righe.forEach(riga => {
+        let idRiga = riga.getAttribute('data-riga'); let fileIdV = riga.getAttribute('data-fileid');
+        let dataV = document.getElementById('em-mat-data-'+idRiga).value; let catV = document.getElementById('em-mat-cat-'+idRiga).value;
+        let descV = document.getElementById('em-mat-desc-'+idRiga).value.trim(); let qtaV = document.getElementById('em-mat-qta-'+idRiga).value;
+        let costoV = parseFloat(document.getElementById('em-mat-costo-'+idRiga).value) || 0; let acqV = document.getElementById('em-mat-acq-'+idRiga).value;
+        let incV = document.getElementById('em-mat-incarico-'+idRiga).value; let custV = document.getElementById('em-mat-custode-'+idRiga).value;
+
+        if(!dataV || !catV || !descV || !qtaV || !acqV || !incV || !custV) hasErrors = true;
+        modifiche.push({ fileId: fileIdV, riga: idRiga, data: dataV, categoria: catV, descrizione: descV, quantita: qtaV, costo: costoV, acquistatoDa: acqV, inCaricoA: incV, custode: custV });
+    });
+    if(hasErrors) return alert("Assicurati che tutti i campi siano compilati.");
+    
+    let btn = document.querySelector('#btn-container-modifica-mat .btn-success'); btn.disabled = true; btn.innerText = "SALVATAGGIO..."; 
+    google.script.run.withSuccessHandler(res => { if(res.success) { showToast("Inventario aggiornato!"); caricaDatiMateriali(); } else alert("Errore: " + res.error); }).salvaModificheMultipleMateriali(modifiche, utenteCorrente.cognome);
+}
+
+function eliminaMateriale(fileId, riga) { 
+    if(!confirm("Sicuro di voler eliminare questo materiale dall'inventario?")) return; 
+    google.script.run.withSuccessHandler(res => { if(res.success) { showToast("Materiale eliminato."); caricaDatiMateriali(); } else alert("Errore: " + res.error); }).eliminaMateriale(fileId, riga); 
+}
+
+function eseguiSalvaMateriale() {
+    let cat = document.getElementById('mat-categoria').value; let desc = document.getElementById('mat-descrizione').value.trim(); let qta = document.getElementById('mat-quantita').value;
+    let costo = parseFloat(document.getElementById('mat-costo').value) || 0; let data = document.getElementById('mat-data').value; let acqDa = document.getElementById('mat-acquistato-da').value;
+    let inCaricoA = document.getElementById('mat-in-carico-a').value; let custode = document.getElementById('mat-custode').value; let fileInput = document.getElementById('mat-file');
+
+    if(!cat || !desc || !qta || !data || !acqDa || !inCaricoA || !custode) { alert("Compila tutti i campi obbligatori prima di salvare."); return; }
+
+    let fileBase64 = null; let mimeType = null; let fileName = null;
+    let btn = document.getElementById('btn-salva-materiale');
+    
+    const inviaDati = () => {
+        btn.disabled = true; btn.innerText = "SALVATAGGIO IN CORSO...";
+        let dati = { cip: utenteCorrente.cip, categoria: cat, descrizione: desc, quantita: qta, costo: costo, data: data, acquistatoDa: acqDa, inCaricoA: inCaricoA, custode: custode };
+        
+        google.script.run.withSuccessHandler(res => {
+            if(res && res.success) {
+                showToast("Materiale registrato con successo!");
+                document.getElementById('mat-categoria').value = ""; document.getElementById('mat-descrizione').value = "";
+                document.getElementById('mat-quantita').value = "1"; document.getElementById('mat-costo').value = "";
+                let oggi = new Date(); document.getElementById('mat-data').value = oggi.getFullYear() + "-" + String(oggi.getMonth() + 1).padStart(2, '0') + "-" + String(oggi.getDate()).padStart(2, '0');
+                document.getElementById('mat-acquistato-da').value = ""; document.getElementById('mat-in-carico-a').value = ""; document.getElementById('mat-custode').innerHTML = '<option value="">Prima seleziona \'In Carico A\'</option>'; document.getElementById('mat-file').value = "";
+                btn.disabled = false; btn.innerText = "REGISTRA"; caricaDatiMateriali();
+            } else { alert("Errore: " + (res.error || "Errore sconosciuto")); btn.disabled = false; btn.innerText = "REGISTRA"; }
+        }).salvaNuovoMateriale(dati, fileBase64, mimeType, fileName);
+    };
+
+    if (fileInput.files.length > 0) {
+        let file = fileInput.files[0]; if (file.size > 2 * 1024 * 1024) { alert("Il documento fiscale supera il limite di 2 MB."); return; }
+        let reader = new FileReader(); reader.onload = function(e) { fileBase64 = e.target.result.split(',')[1]; mimeType = file.type; fileName = file.name; inviaDati(); }; reader.readAsDataURL(file);
+    } else { inviaDati(); }
+}
+</script>

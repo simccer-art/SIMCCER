@@ -1,0 +1,242 @@
+<script>
+// ==========================================
+// FUNZIONI GESTIONE RUBRICA AVANZATA
+// ==========================================
+
+let cacheInteraRubrica = []; let categoriaAttualeRubrica = ""; let filtroSubAttuale = "TUTTI";
+let colonnaOrdinamentoRubrica = 'nome'; let ordineAscendenteRubrica = true;
+let adminEditRichiestaRiga = null; let adminEditContattoID = null;
+
+function caricaRubrica() {
+    tornaRubricaDash();
+    google.script.run.withSuccessHandler(res => { if (res && !res.error) { cacheInteraRubrica = res || []; } }).getContattiRubrica();
+}
+
+function tornaRubricaDash() {
+    document.getElementById('rubrica-lista').style.display = 'none'; document.getElementById('rubrica-nuovo').style.display = 'none';
+    let admPan = document.getElementById('rubrica-admin-pannello'); if(admPan) admPan.style.display = 'none';
+    document.getElementById('rubrica-dashboard').style.display = 'block';
+
+    adminEditRichiestaRiga = null; adminEditContattoID = null;
+    let btnSalva = document.getElementById('btn-salva-rubrica'); if (btnSalva) btnSalva.innerText = "INVIA PROPOSTA DI INSERIMENTO";
+
+    if (utenteCorrente && utenteCorrente.ruoloBase === "AMMINISTRATORE") {
+        let admCard = document.getElementById('admin-rubrica-card'); if(admCard) admCard.style.display = 'flex';
+    }
+}
+
+function apriCategoriaRubrica(cat) {
+    categoriaAttualeRubrica = cat;
+    document.getElementById('rubrica-dashboard').style.display = 'none'; document.getElementById('rubrica-lista').style.display = 'block';
+    document.getElementById('titolo-categoria-rubrica').innerText = "Contatti: " + cat; document.getElementById('rubrica-cerca').value = "";
+    filtroSubAttuale = "TUTTI";
+    
+    let divChips = document.getElementById('rubrica-chips-interni');
+    if (cat === 'INTERNI') {
+        divChips.style.display = 'flex'; document.querySelectorAll('#rubrica-chips-interni .chip-btn').forEach(b => b.classList.remove('active')); document.querySelector('#rubrica-chips-interni .chip-btn').classList.add('active');
+    } else { divChips.style.display = 'none'; }
+    
+    if (cacheInteraRubrica.length === 0) {
+        document.getElementById('rubrica-risultati').innerHTML = "<p>Caricamento in corso...</p>";
+        google.script.run.withSuccessHandler(res => { if (!res.error) { cacheInteraRubrica = res; filtraContattiVisivi(); } else document.getElementById('rubrica-risultati').innerHTML = "<p style='color:red;'>Errore: " + res.error + "</p>"; }).getContattiRubrica();
+    } else { filtraContattiVisivi(); }
+}
+
+function setFiltroChipRubrica(valore, btnElement) {
+    filtroSubAttuale = valore; document.querySelectorAll('#rubrica-chips-interni .chip-btn').forEach(b => b.classList.remove('active')); btnElement.classList.add('active'); filtraContattiVisivi();
+}
+
+function ordinaTabellaRubrica(colonna) {
+    if (colonnaOrdinamentoRubrica === colonna) { ordineAscendenteRubrica = !ordineAscendenteRubrica; } 
+    else { colonnaOrdinamentoRubrica = colonna; ordineAscendenteRubrica = true; }
+    filtraContattiVisivi();
+}
+
+function filtraContattiVisivi() {
+    let testo = document.getElementById('rubrica-cerca').value.toLowerCase(); let raggruppamento = document.getElementById('rubrica-raggruppa').value;
+    let filtrati = cacheInteraRubrica.filter(c => {
+        let matchCat = (c.categoria === categoriaAttualeRubrica); let matchSub = (filtroSubAttuale === 'TUTTI' || c.livello === filtroSubAttuale);
+        let strRicerca = (c.nome + " " + c.ruolo + " " + (c.livello||"") + " " + (c.sedeUfficio||"")).toLowerCase();
+        let matchTesto = (testo === "" || strRicerca.includes(testo));
+        return matchCat && matchSub && matchTesto;
+    });
+    
+    filtrati.sort((a, b) => {
+        if (raggruppamento) {
+            let valGrpA = String(a[raggruppamento] || "").toLowerCase(); let valGrpB = String(b[raggruppamento] || "").toLowerCase();
+            if (valGrpA < valGrpB) return -1; if (valGrpA > valGrpB) return 1;
+        }
+        let valA = String(a[colonnaOrdinamentoRubrica] || "").toLowerCase(); let valB = String(b[colonnaOrdinamentoRubrica] || "").toLowerCase();
+        if (valA < valB) return ordineAscendenteRubrica ? -1 : 1; if (valA > valB) return ordineAscendenteRubrica ? 1 : -1; return 0;
+    });
+    renderCardRubrica(filtrati);
+}
+
+function mostraFormNuovoContatto(catPredefinita) {
+    document.getElementById('rubrica-dashboard').style.display = 'none'; document.getElementById('rubrica-lista').style.display = 'none';
+    let admPan = document.getElementById('rubrica-admin-pannello'); if(admPan) admPan.style.display = 'none';
+    document.getElementById('rubrica-nuovo').style.display = 'block';
+    
+    adminEditRichiestaRiga = null; 
+    document.getElementById('btn-salva-rubrica').innerText = utenteCorrente.ruoloBase === "AMMINISTRATORE" ? "SALVA CONTATTO NEL DATABASE" : "INVIA PROPOSTA DI INSERIMENTO";
+    
+    let selectCat = document.getElementById('nuovo-rub-cat'); selectCat.disabled = false; 
+    if (catPredefinita && catPredefinita !== 'INTERNI') {
+        if (['COMANDI', 'LEGALI', 'STAMPA'].includes(catPredefinita)) { selectCat.value = catPredefinita; } else { selectCat.value = 'ALTRI'; }
+        selectCat.disabled = true; 
+    }
+}
+
+function salvaNuovoContatto() {
+    try {
+        let selectCat = document.getElementById('nuovo-rub-cat'); let cat = selectCat.value; let nome = document.getElementById('nuovo-rub-nome').value.trim();
+        if (!nome) return alert("Inserisci il Nome o la Denominazione.");
+        
+        let btn = document.getElementById('btn-salva-rubrica'); let msg = document.getElementById('msg-rubrica-nuovo');
+        btn.disabled = true; btn.innerText = "ATTENDERE..."; msg.innerText = ""; msg.style.color = "black";
+
+        let usrName = utenteCorrente ? (utenteCorrente.cognome + " " + utenteCorrente.nome) : "Utente Sconosciuto";
+        let isAdmin = utenteCorrente ? (utenteCorrente.ruoloBase === "AMMINISTRATORE") : false;
+
+        let dati = {
+            categoria_base: cat, categoria_specifica: cat, tipo_azione: "NUOVO", tipo: document.getElementById('nuovo-rub-tipo').value,
+            nome: nome, ruolo: document.getElementById('nuovo-rub-ruolo').value.trim(), livello: document.getElementById('nuovo-rub-livello') ? document.getElementById('nuovo-rub-livello').value : "",
+            provincia: document.getElementById('nuovo-rub-provincia') ? document.getElementById('nuovo-rub-provincia').value.trim() : "",
+            compagniaReparto: document.getElementById('nuovo-rub-reparto') ? document.getElementById('nuovo-rub-reparto').value.trim() : "",
+            telefono: document.getElementById('nuovo-rub-tel').value.trim(), email: document.getElementById('nuovo-rub-email').value.trim(),
+            pec: document.getElementById('nuovo-rub-pec').value.trim(), sedeUfficio: document.getElementById('nuovo-rub-indirizzo').value.trim(),
+            motivazione: document.getElementById('nuovo-rub-note').value.trim(), utente_nome: usrName
+        };
+
+        if (adminEditContattoID) {
+            google.script.run.withSuccessHandler(res => {
+                if(res && res.success) {
+                    msg.style.color = "green"; msg.innerText = "Contatto aggiornato con successo!";
+                    google.script.run.withSuccessHandler(d => { cacheInteraRubrica = d; }).getContattiRubrica();
+                    setTimeout(() => {
+                        document.querySelectorAll('#rubrica-nuovo input[type="text"]').forEach(i => i.value = ""); if (document.getElementById('nuovo-rub-livello')) document.getElementById('nuovo-rub-livello').value = "";
+                        btn.disabled = false; adminEditContattoID = null; tornaRubricaDash(); 
+                    }, 1500);
+                } else { msg.style.color = "red"; msg.innerText = "Errore: " + res.error; btn.disabled = false; btn.innerText = "SALVA MODIFICHE CONTATTO"; }
+            }).withFailureHandler(err => { msg.style.color = "red"; msg.innerText = "Errore Server: " + err.message; btn.disabled = false; btn.innerText = "SALVA MODIFICHE CONTATTO"; }).modificaContattoRubrica(adminEditContattoID, dati);
+        } else if (adminEditRichiestaRiga) {
+            google.script.run.withSuccessHandler(res => {
+                if(res && res.success) {
+                    msg.style.color = "green"; msg.innerText = "Contatto modificato, approvato e salvato!";
+                    google.script.run.withSuccessHandler(d => { cacheInteraRubrica = d; }).getContattiRubrica();
+                    setTimeout(() => {
+                        document.querySelectorAll('#rubrica-nuovo input[type="text"]').forEach(i => i.value = ""); if (document.getElementById('nuovo-rub-livello')) document.getElementById('nuovo-rub-livello').value = "";
+                        btn.disabled = false; adminEditRichiestaRiga = null; mostraRichiesteRubricaAdmin(); 
+                    }, 1500);
+                } else { msg.style.color = "red"; msg.innerText = "Errore: " + res.error; btn.disabled = false; btn.innerText = "APPROVA MODIFICHE E SALVA"; }
+            }).withFailureHandler(err => { msg.style.color = "red"; msg.innerText = "Errore Server: " + err.message; btn.disabled = false; btn.innerText = "APPROVA MODIFICHE E SALVA"; }).gestisciRichiestaRubricaAzione(adminEditRichiestaRiga, 'APPROVATO', JSON.stringify(dati));
+        } else {
+            google.script.run.withSuccessHandler(res => {
+                if(res && res.success) {
+                    msg.style.color = "green"; msg.innerText = res.pending ? "Richiesta inviata all'Amministratore!" : "Contatto salvato direttamente nel database!";
+                    google.script.run.withSuccessHandler(d => { cacheInteraRubrica = d; }).getContattiRubrica();
+                    setTimeout(() => {
+                        document.querySelectorAll('#rubrica-nuovo input[type="text"]').forEach(i => i.value = ""); if (document.getElementById('nuovo-rub-livello')) document.getElementById('nuovo-rub-livello').value = "";
+                        btn.disabled = false; btn.innerText = isAdmin ? "SALVA CONTATTO NEL DATABASE" : "INVIA PROPOSTA DI INSERIMENTO"; tornaRubricaDash();
+                    }, 1500);
+                } else { msg.style.color = "red"; msg.innerText = "Errore: " + (res ? res.error : "Risposta vuota"); btn.disabled = false; btn.innerText = isAdmin ? "SALVA CONTATTO NEL DATABASE" : "INVIA PROPOSTA DI INSERIMENTO"; }
+            }).withFailureHandler(err => { msg.style.color = "red"; msg.innerText = "Errore Server: " + err.message; btn.disabled = false; btn.innerText = isAdmin ? "SALVA CONTATTO NEL DATABASE" : "INVIA PROPOSTA DI INSERIMENTO"; }).salvaRichiestaRubrica(dati, isAdmin);
+        }
+    } catch(err) { alert("Errore nell'interfaccia: " + err.message); let btn = document.getElementById('btn-salva-rubrica'); if (btn) { btn.disabled = false; } }
+}
+
+function renderCardRubrica(lista) {
+    let container = document.getElementById('rubrica-risultati'); container.style.display = "block";
+    let isAdmin = utenteCorrente ? (utenteCorrente.ruoloBase === "AMMINISTRATORE") : false;
+
+    if (lista.length === 0 && categoriaAttualeRubrica === 'INTERNI') { container.innerHTML = "<p style='padding: 20px; text-align: center; color: #666;'>Nessun contatto trovato.</p>"; return; }
+
+    function getIcona(col) { if (colonnaOrdinamentoRubrica !== col) return "⇅"; return ordineAscendenteRubrica ? "▲" : "▼"; }
+
+    let html = `<div style="overflow-x: auto; border-radius: 8px; border: 1px solid #ccc; box-shadow: 0 2px 8px rgba(0,0,0,0.05); width: 100%;"><table style="width: 100%; min-width: 1000px; border-collapse: collapse; font-size: 13px; background: white;"><thead><tr style="background-color: var(--primary); color: white; text-align: left;"><th style="padding: 12px; cursor: pointer; border-right: 1px solid rgba(255,255,255,0.2);" onclick="ordinaTabellaRubrica('nome')">CONTATTO ${getIcona('nome')}</th><th style="padding: 12px; cursor: pointer; border-right: 1px solid rgba(255,255,255,0.2);" onclick="ordinaTabellaRubrica('livello')">LIVELLO ${getIcona('livello')}</th><th style="padding: 12px; cursor: pointer; border-right: 1px solid rgba(255,255,255,0.2);" onclick="ordinaTabellaRubrica('provincia')">PROVINCIA ${getIcona('provincia')}</th><th style="padding: 12px; cursor: pointer; border-right: 1px solid rgba(255,255,255,0.2);" onclick="ordinaTabellaRubrica('compagniaReparto')">COMPAGNIA/REPARTO ${getIcona('compagniaReparto')}</th><th style="padding: 12px; cursor: pointer; border-right: 1px solid rgba(255,255,255,0.2);" onclick="ordinaTabellaRubrica('sedeUfficio')">SEDE/UFFICIO ${getIcona('sedeUfficio')}</th><th style="padding: 12px; text-align: center; width: 110px;">AZIONI</th></tr></thead><tbody>`;
+
+    if (categoriaAttualeRubrica !== 'INTERNI') {
+        let textProp = isAdmin ? "Aggiungi un nuovo contatto a questa categoria..." : "Proponi un nuovo inserimento per questa rubrica...";
+        html += `<tr style="background: #fdfdfd; border-bottom: 2px solid #eee;"><td colspan="5" style="padding: 10px; font-style: italic; color: #888;">${textProp}</td><td style="padding: 10px; text-align: center;"><button class="btn-rubrica-azione btn-out-darkblue" onclick="mostraFormNuovoContatto('${categoriaAttualeRubrica}')">AGGIUNGI</button></td></tr>`;
+    }
+
+    lista.forEach((c, index) => {
+        let bg = index % 2 === 0 ? "#fff" : "#fcfcfc"; let isInterno = c.riga.startsWith("CAR_");
+        let btns = ""; if (c.telefono) btns += `<a href="tel:${c.telefono}" class="btn-rubrica-azione btn-out-vista">CHIAMA</a>`; if (c.email) btns += `<a href="mailto:${c.email}" class="btn-rubrica-azione btn-out-gray">EMAIL</a>`;
+        if (!isInterno) { btns += `<button class="btn-rubrica-azione btn-out-warn" onclick="gestisciAzioneRubrica('${c.riga}', 'MODIFICA')">MODIFICA</button><button class="btn-rubrica-azione btn-out-danger" onclick="gestisciAzioneRubrica('${c.riga}', 'ELIMINA')">ELIMINA</button>`; }
+        html += `<tr style="background:${bg}; border-bottom: 1px solid #eee;"><td style="padding: 10px;"><div style="font-size:14px; font-weight:bold;">${c.nome}</div><div style="font-size:12px; color:#666;">${c.ruolo || '-'}</div></td><td style="padding: 10px; vertical-align: middle;">${c.livello || '-'}</td><td style="padding: 10px; vertical-align: middle;">${c.provincia || '-'}</td><td style="padding: 10px; vertical-align: middle;">${c.compagniaReparto || '-'}</td><td style="padding: 10px; vertical-align: middle;">${c.sedeUfficio || '-'}</td><td style="padding: 10px; text-align:center; vertical-align: middle;"><div style="display:flex; flex-direction: column; width: 95px; margin: 0 auto;">${btns}</div></td></tr>`;
+    });
+    html += `</tbody></table></div>`; container.innerHTML = html;
+}
+
+function gestisciAzioneRubrica(idRiga, azione) {
+    let isAdmin = utenteCorrente ? (utenteCorrente.ruoloBase === "AMMINISTRATORE") : false;
+    if (azione === 'ELIMINA') {
+        let motivazione = "";
+        if (!isAdmin) { motivazione = prompt("Indica all'Amministratore il motivo della cancellazione:"); if (motivazione === null) return; if (!motivazione.trim()) return alert("Devi inserire una motivazione."); } 
+        else { if (!confirm("Confermi l'eliminazione definitiva del contatto?")) return; }
+        showToast("Invio richiesta...");
+        google.script.run.withSuccessHandler(res => { if(res.success) { showToast(res.pending ? "Richiesta inviata all'Amministratore." : "Contatto eliminato."); cacheInteraRubrica = []; apriCategoriaRubrica(categoriaAttualeRubrica); } else alert(res.error); }).eliminaContattoRubrica(idRiga, motivazione, utenteCorrente.cognome + " " + utenteCorrente.nome, isAdmin);
+    }
+    if (azione === 'MODIFICA') {
+        if (!isAdmin) {
+            let msg = prompt("Cosa bisognerebbe modificare? (Il messaggio verrà inviato all'Amministratore per la correzione):");
+            if (msg === null) return; if (!msg.trim()) return alert("Inserisci una descrizione della modifica.");
+            google.script.run.withSuccessHandler(res => { if(res.success) showToast("Richiesta di modifica inviata."); }).salvaRichiestaRubrica({ tipo_azione: "MODIFICA", id_riga: idRiga, motivazione: msg, utente_nome: utenteCorrente.cognome + " " + utenteCorrente.nome }, false);
+        } else {
+            let contattoDaModificare = cacheInteraRubrica.find(c => c.riga === idRiga);
+            if (contattoDaModificare) { apriModificaContattoAdmin(contattoDaModificare); } else { alert("Errore: Impossibile trovare i dati del contatto in memoria."); }
+        }
+    }
+}
+
+function apriModificaContattoAdmin(contatto) {
+    adminEditContattoID = contatto.riga; document.getElementById('rubrica-dashboard').style.display = 'none'; document.getElementById('rubrica-lista').style.display = 'none'; let admPan = document.getElementById('rubrica-admin-pannello'); if(admPan) admPan.style.display = 'none'; document.getElementById('rubrica-nuovo').style.display = 'block';
+    
+    let selectCat = document.getElementById('nuovo-rub-cat'); selectCat.disabled = true; 
+    let catBase = ['COMANDI', 'LEGALI', 'STAMPA'].includes(contatto.categoria) ? contatto.categoria : 'ALTRI'; selectCat.value = catBase;
+    
+    document.getElementById('nuovo-rub-tipo').value = contatto.tipo || "Ufficio"; document.getElementById('nuovo-rub-nome').value = contatto.nome || ""; document.getElementById('nuovo-rub-ruolo').value = contatto.ruolo || "";
+    if(document.getElementById('nuovo-rub-livello')) document.getElementById('nuovo-rub-livello').value = contatto.livello || ""; if(document.getElementById('nuovo-rub-provincia')) document.getElementById('nuovo-rub-provincia').value = contatto.provincia || ""; if(document.getElementById('nuovo-rub-reparto')) document.getElementById('nuovo-rub-reparto').value = contatto.compagniaReparto || "";
+    
+    document.getElementById('nuovo-rub-tel').value = contatto.telefono || ""; document.getElementById('nuovo-rub-email').value = contatto.email || ""; document.getElementById('nuovo-rub-pec').value = contatto.pec || ""; document.getElementById('nuovo-rub-indirizzo').value = contatto.sedeUfficio || ""; document.getElementById('nuovo-rub-note').value = ""; 
+    document.getElementById('btn-salva-rubrica').innerText = "SALVA MODIFICHE CONTATTO";
+}
+
+function mostraRichiesteRubricaAdmin() {
+    document.getElementById('rubrica-dashboard').style.display = 'none'; document.getElementById('rubrica-lista').style.display = 'none'; document.getElementById('rubrica-nuovo').style.display = 'none'; document.getElementById('rubrica-admin-pannello').style.display = 'block';
+    if (window.lastCountsObj && window.lastCountsObj.rubrica) { localStorage.setItem('rub_hash_gestione_' + utenteCorrente.cip, window.lastCountsObj.rubrica.hashGestione); let bd = document.getElementById('badge-dash-rubrica'); if(bd) bd.style.display = 'none'; let ba = document.getElementById('badge-rubrica-admin'); if(ba) ba.style.display = 'none'; }
+
+    document.getElementById('rubrica-admin-lista').innerHTML = "Caricamento in corso...";
+    google.script.run.withSuccessHandler(reqs => {
+        if (reqs.length === 0) { document.getElementById('rubrica-admin-lista').innerHTML = "<p style='padding:20px; text-align:center;'>Nessuna richiesta in attesa.</p>"; return; }
+        let html = "";
+        reqs.forEach(r => {
+            let d = JSON.parse(r.datiJSON); let info = ""; let btnModificaHTML = "";
+            if (r.tipo === "NUOVO") {
+                info = `<b style="color:var(--success);">Nuovo Contatto Proposto:</b><br><span style="font-size:16px;">${d.nome}</span> <span style="font-size:11px; color:#666;">(${d.categoria_specifica})</span><br>📞 ${d.telefono} | ✉️ ${d.email}`;
+                let safeJson = r.datiJSON.replace(/'/g, "&#39;").replace(/"/g, "&quot;");
+                btnModificaHTML = `<button class="btn btn-warning btn-small" style="color:black;" onclick="apriModificaRichiestaAdmin(${r.riga}, '${safeJson}')">MODIFICA</button>`;
+            } else if (r.tipo === "ELIMINA") { info = `<b style="color:var(--danger);">Richiesta Eliminazione:</b><br>ID Contatto di sistema: <code>${d.id_riga}</code>`; } 
+            else if (r.tipo === "MODIFICA") { info = `<b style="color:#ffb74d;">Richiesta Modifica da applicare:</b><br>ID Contatto di sistema: <code>${d.id_riga}</code>`; }
+            
+            html += `<div style="background:#fff; border:1px solid #ccc; border-left:4px solid #ffb74d; padding:15px; margin-bottom:10px; border-radius:4px;"><div style="font-size:12px; color:#666; margin-bottom:10px; border-bottom:1px solid #eee; padding-bottom:5px;">Inviata il <b>${r.data}</b> dall'utente <b>${r.richiedente}</b></div><div style="font-size:14px; margin-bottom:10px; line-height:1.5;">${info}</div><div style="font-size:13px; color:var(--danger); margin-bottom:15px; background:#fff3cd; padding:8px; border:1px dashed #ffc107;"><b>Nota dell'utente:</b> ${r.motivo || "Nessuna nota fornita"}</div><button class="btn btn-success btn-small" onclick="eseguiAzioneRichiestaRubrica(${r.riga}, 'APPROVATO')">APPROVA / ESEGUI</button> ${btnModificaHTML} <button class="btn btn-danger btn-small" onclick="eseguiAzioneRichiestaRubrica(${r.riga}, 'RIFIUTATO')">IGNORA RICHIESTA</button></div>`;
+        }); document.getElementById('rubrica-admin-lista').innerHTML = html;
+    }).getRichiesteRubrica(utenteCorrente.ruoloBase);
+}
+
+function apriModificaRichiestaAdmin(riga, jsonStr) {
+    let dati = JSON.parse(jsonStr); adminEditRichiestaRiga = riga; 
+    document.getElementById('rubrica-admin-pannello').style.display = 'none'; document.getElementById('rubrica-nuovo').style.display = 'block';
+    
+    document.getElementById('nuovo-rub-cat').value = dati.categoria_base || "ALTRI"; document.getElementById('nuovo-rub-cat').disabled = false;
+    document.getElementById('nuovo-rub-tipo').value = dati.tipo || "Ufficio"; document.getElementById('nuovo-rub-nome').value = dati.nome || ""; document.getElementById('nuovo-rub-ruolo').value = dati.ruolo || "";
+    
+    if(document.getElementById('nuovo-rub-livello')) document.getElementById('nuovo-rub-livello').value = dati.livello || ""; if(document.getElementById('nuovo-rub-provincia')) document.getElementById('nuovo-rub-provincia').value = dati.provincia || ""; if(document.getElementById('nuovo-rub-reparto')) document.getElementById('nuovo-rub-reparto').value = dati.compagniaReparto || "";
+    
+    document.getElementById('nuovo-rub-tel').value = dati.telefono || ""; document.getElementById('nuovo-rub-email').value = dati.email || ""; document.getElementById('nuovo-rub-pec').value = dati.pec || ""; document.getElementById('nuovo-rub-indirizzo').value = dati.sedeUfficio || ""; document.getElementById('nuovo-rub-note').value = dati.motivazione || ""; 
+    document.getElementById('btn-salva-rubrica').innerText = "APPROVA MODIFICHE E SALVA";
+}
+
+function eseguiAzioneRichiestaRubrica(riga, azione) { showToast("Elaborazione..."); google.script.run.withSuccessHandler(res => { if(res.success) { showToast("Pratica aggiornata con successo."); mostraRichiesteRubricaAdmin(); caricaNotificheDashboard(false); } else { alert("Errore: " + res.error); } }).gestisciRichiestaRubricaAzione(riga, azione); }
+</script>

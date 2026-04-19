@@ -1,0 +1,77 @@
+<script>
+// ==========================================
+// FUNZIONI GESTIONE SEGRETARI E PROFILO
+// ==========================================
+
+function caricaGestioneSegretari() { 
+    document.getElementById('lista-segretari-container').innerHTML = "Caricamento in corso..."; 
+    google.script.run.withSuccessHandler(utenti => { 
+        utentiGestioneCache = utenti; 
+        renderListaSegretari(utentiGestioneCache); 
+    }).getUtentiPerGestione(utenteCorrente); 
+}
+
+function renderListaSegretari(lista) {
+    if (lista.length === 0) { document.getElementById('lista-segretari-container').innerHTML = "<p>Nessun segretario trovato.</p>"; return; }
+    let gruppi = {}; let hasER = false;
+    lista.forEach(u => { let prov = u.provincia; if(prov === 'EMILIA ROMAGNA') hasER = true; if(!gruppi[prov]) gruppi[prov] = []; gruppi[prov].push(u); });
+    let html = ""; let province = Object.keys(gruppi).sort(); let provinceOrdinate = [];
+    if(hasER) provinceOrdinate.push('EMILIA ROMAGNA'); province.forEach(p => { if(p !== 'EMILIA ROMAGNA') provinceOrdinate.push(p); });
+    provinceOrdinate.forEach(prov => {
+        html += `<h4 style="color: var(--primary); border-bottom: 2px solid var(--primary); margin-top: 20px; padding-bottom: 5px;">Segreteria ${prov}</h4><table style="table-layout: fixed; width: 100%;"><tr><th style="width: 35%;">Cognome e Nome</th><th style="width: 40%;">Carica</th><th style="width: 10%; text-align: center;">Consigliere</th><th style="width: 15%; text-align: center;">Azioni</th></tr>`;
+        gruppi[prov].sort((a,b) => { if(a.consigliere === 'SI' && b.consigliere !== 'SI') return -1; if(a.consigliere !== 'SI' && b.consigliere === 'SI') return 1; return (a.ordineFile || 0) - (b.ordineFile || 0); }).forEach(u => {
+            let badgeConsigliere = u.consigliere === 'SI' ? `<span style="border: 1px solid var(--danger); color: var(--danger); background-color: transparent; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold;">SÌ</span>` : `<span style="color: #999; font-size: 11px;">NO</span>`;
+            let jsonStr = JSON.stringify(u).replace(/'/g, "&apos;"); 
+            let savedPic = u.fotoUrl; 
+            let avatarHtml = savedPic ? `<img src="${savedPic}" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover; margin-right: 10px; border: 1px solid var(--secondary); flex-shrink: 0;">` : `<div style="width: 32px; height: 32px; border-radius: 50%; background-color: var(--primary); color: white; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; margin-right: 10px; border: 1px solid var(--secondary); flex-shrink: 0;">${u.cognome.charAt(0)}${u.nome.charAt(0)}</div>`;
+            let coloreCarica = "var(--gray-blue)"; let uCar = (u.carica || "").toUpperCase(); if (uCar.includes("SEGRETARIO GENERALE AGGIUNTO")) coloreCarica = "#0056b3"; else if (uCar.includes("SEGRETARIO GENERALE")) coloreCarica = "#800020"; 
+            let iconaCaricaHtml = `<div style="width: 32px; height: 32px; border-radius: 50%; border: 1.5px solid ${coloreCarica}; background-color: transparent; display: flex; align-items: center; justify-content: center; margin-right: 10px; flex-shrink: 0;"><svg viewBox="0 0 24 24" width="20" height="20" fill="${coloreCarica}"><path d="M12,11 C14.2,11 16,9.2 16,7 C16,4.8 14.2,3 12,3 C9.8,3 8,4.8 8,7 C8,9.2 9.8,11 12,11 Z M12,13 C8.67,13 2,14.67 2,18 L2,21 L22,21 L22,18 C22,14.67 15.33,13 12,13 Z"></path><polygon fill="#ffffff" points="12 13 10.5 16 12 20 13.5 16"></polygon></svg></div>`;
+            html += `<tr><td style="vertical-align: middle;"><div style="display: flex; align-items: center;">${avatarHtml}<strong>${u.cognome} ${u.nome}</strong></div></td><td style="vertical-align: middle;"><div style="display: flex; align-items: center;">${iconaCaricaHtml}<span>${u.carica}</span></div></td><td style="vertical-align: middle; text-align:center;">${badgeConsigliere}</td><td style="vertical-align: middle; text-align:center;"><button class="btn btn-small" style="background-color: var(--primary); color: white; margin: 0;" onclick='apriProfiloSegretario(${jsonStr})'>SCHEDA</button></td></tr>`;
+        }); html += `</table>`;
+    }); document.getElementById('lista-segretari-container').innerHTML = html;
+}
+
+function filtraSegretari() { let termine = document.getElementById('filtro-segretari').value.toLowerCase(); let filtrati = utentiGestioneCache.filter(u => u.cognome.toLowerCase().includes(termine) || u.nome.toLowerCase().includes(termine)); renderListaSegretari(filtrati); }
+
+function apriProfiloSegretario(u) {
+    let isFinAdmin = utenteCorrente.ruolo.includes('AMMINISTRATORE') || utenteCorrente.ruolo.includes('TESORIERE'); let finHtml = "";
+    if (isFinAdmin) { let ibansList = (u.ibans || []).map(i => `<li>${i.alias}: ${i.iban}</li>`).join(''); let vetList = (u.vetture || []).map(v => `<li>${v.modello} - ${v.targa}</li>`).join(''); finHtml = `<hr style="border: 0.5px solid #ccc; margin: 15px 0;"><h5 style="color:var(--danger); margin:0 0 10px 0;">DATI FINANZIARI (Visibili solo ad Admin/Tesoriere)</h5><div><strong>CODICE FISCALE:</strong> ${u.cf || '-'}</div><div><strong>IBAN REGISTRATI:</strong> <ul style="margin:5px 0; padding-left:20px;">${ibansList || '<li>Nessuno</li>'}</ul></div><div><strong>VETTURE REGISTRATE:</strong> <ul style="margin:5px 0; padding-left:20px;">${vetList || '<li>Nessuna</li>'}</ul></div>`; }
+    let avatarHtml = u.fotoUrl ? `<div style="text-align:center; margin-bottom:15px;"><img src="${u.fotoUrl}" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 3px solid var(--secondary);"></div>` : "";
+    let html = `${avatarHtml}<div style="text-align: left; line-height: 2; font-size: 14px; background: #f8f9fa; padding: 20px; border: 1px solid #ddd; border-left: 5px solid var(--primary);"><div><strong>COGNOME NOME:</strong> ${u.cognome} ${u.nome}</div><div><strong>GRADO:</strong> ${u.grado}</div><div><strong>CARICA E PROVINCIA:</strong> ${u.carica} ${u.provincia}</div><div><strong>DATA ELEZIONE:</strong> ${u.dataElezione}</div><div><strong>CONSIGLIERE:</strong> ${u.consigliere} &nbsp;&nbsp;&nbsp;<strong>DATA NOMINA:</strong> ${u.dataNomina}</div><div><strong>SEGRETERIA:</strong> ${u.segreteria}</div><div><strong>CIP:</strong> ${u.cip}</div><div><strong>REPARTO:</strong> ${u.reparto}</div><div><strong>PROVINCIA SERVIZIO:</strong> ${u.provServizio}</div><div><strong>ORGANIZZAZIONE:</strong> ${u.organizzazione}</div><div><strong>EMAIL:</strong> ${u.email} &nbsp;&nbsp;&nbsp;<strong>TELEFONO:</strong> ${u.telefono}</div><div><strong>RUOLO:</strong> ${u.ruolo}</div>${finHtml}</div>`;
+    document.getElementById('dettaglio-profilo-segretario').innerHTML = html; document.getElementById('modal-profilo-segretario').style.display = 'flex';
+}
+
+function chiudiProfiloSegretario() { document.getElementById('modal-profilo-segretario').style.display = 'none'; }
+
+function mostraEditProfilo() { document.getElementById('btn-apri-modifica').style.display = 'none'; document.getElementById('edit-profilo').style.display = 'block'; }
+
+function inviaRichiestaModificaProfilo() {
+  let ibans = []; let i1a = document.getElementById('edit-iban1-alias').value.trim(); let i1v = document.getElementById('edit-iban1-val').value.trim(); if(i1v) ibans.push({alias: i1a || 'IBAN 1', iban: i1v}); let i2a = document.getElementById('edit-iban2-alias').value.trim(); let i2v = document.getElementById('edit-iban2-val').value.trim(); if(i2v) ibans.push({alias: i2a || 'IBAN 2', iban: i2v});
+  let vetture = []; let v1m = document.getElementById('edit-vet1-mod').value.trim(); let v1t = document.getElementById('edit-vet1-tar').value.trim(); if(v1m || v1t) vetture.push({modello: v1m || 'Veicolo 1', targa: v1t || '-'}); let v2m = document.getElementById('edit-vet2-mod').value.trim(); let v2t = document.getElementById('edit-vet2-tar').value.trim(); if(v2m || v2t) vetture.push({modello: v2m || 'Veicolo 2', targa: v2t || '-'}); let v3m = document.getElementById('edit-vet3-mod').value.trim(); let v3t = document.getElementById('edit-vet3-tar').value.trim(); if(v3m || v3t) vetture.push({modello: v3m || 'Veicolo 3', targa: v3t || '-'});
+  let datiModifica = { grado: document.getElementById('edit-grado').value.trim(), reparto: document.getElementById('edit-reparto').value.trim(), provServizio: document.getElementById('edit-provservizio').value.trim(), email: document.getElementById('edit-email').value.trim(), telefono: document.getElementById('edit-telefono').value.trim(), cf: document.getElementById('edit-cf').value.trim().toUpperCase(), ibans: ibans, vetture: vetture };
+  let jsonStr = JSON.stringify(datiModifica); document.getElementById('msg-modifica-profilo').innerText = "Invio richiesta...";
+  google.script.run.withSuccessHandler(res => { if(res.success) { document.getElementById('msg-modifica-profilo').style.color = "green"; document.getElementById('msg-modifica-profilo').innerText = "Richiesta inviata all'Amministratore!"; setTimeout(() => { document.getElementById('btn-apri-modifica').style.display = 'block'; document.getElementById('edit-profilo').style.display = 'none'; document.getElementById('msg-modifica-profilo').innerText = ""; }, 2000); } else { document.getElementById('msg-modifica-profilo').style.color = "red"; document.getElementById('msg-modifica-profilo').innerText = "Errore: " + res.error; } }).salvaRichiestaModificaProfilo(utenteCorrente.cip, `${utenteCorrente.cognome} ${utenteCorrente.nome}`, jsonStr);
+}
+
+function caricaModificheProfilo() {
+  document.getElementById('admin-modifiche-container').innerHTML = "Caricamento...";
+  google.script.run.withSuccessHandler(richieste => {
+     if (richieste.length === 0) { document.getElementById('admin-modifiche-container').innerHTML = "<p>Nessuna richiesta in attesa.</p>"; return; }
+     let html = "";
+     richieste.forEach(r => {
+         let d = JSON.parse(r.datiJSON); let ibansTxt = (d.ibans||[]).map(x => `${x.alias}: ${x.iban}`).join(', ') || 'Nessuno'; let vetTxt = (d.vetture||[]).map(x => `${x.modello} (${x.targa})`).join(', ') || 'Nessuna';
+         html += `<div style="background:white; border:1px solid #ccc; padding:15px; margin-bottom:10px;"><strong>${r.nome} (CIP: ${r.cip})</strong> - Richiesta del ${r.data}<br><div style="display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;"><div style="flex:1; min-width:150px;"><label style="font-size:11px;">Grado</label><input type="text" id="mod-gr-${r.riga}" value="${d.grado || ''}"></div><div style="flex:1; min-width:150px;"><label style="font-size:11px;">Reparto</label><input type="text" id="mod-rep-${r.riga}" value="${d.reparto || ''}"></div><div style="flex:1; min-width:150px;"><label style="font-size:11px;">Prov. Serv.</label><input type="text" id="mod-prov-${r.riga}" value="${d.provServizio || ''}"></div><div style="flex:1; min-width:150px;"><label style="font-size:11px;">Email</label><input type="text" id="mod-em-${r.riga}" value="${d.email || ''}"></div><div style="flex:1; min-width:150px;"><label style="font-size:11px;">Telefono</label><input type="text" id="mod-tel-${r.riga}" value="${d.telefono || ''}"></div></div><div style="margin-top:10px; background:#f1f3f5; padding:10px; font-size:13px; border:1px solid #ddd;"><strong>CF:</strong> <input type="text" id="mod-cf-${r.riga}" value="${d.cf || ''}" style="width:150px; display:inline-block; padding:2px; margin:0;"><br><strong>IBAN:</strong> ${ibansTxt}<br><strong>VETTURE:</strong> ${vetTxt}<input type="hidden" id="mod-ibans-${r.riga}" value='${JSON.stringify(d.ibans||[])}'><input type="hidden" id="mod-vetture-${r.riga}" value='${JSON.stringify(d.vetture||[])}'></div><div style="margin-top:10px;"><button class="btn btn-success btn-small" onclick="eseguiApprovaModificaProfilo(${r.riga}, '${r.cip}')">APPROVA MODIFICHE</button> <button class="btn btn-danger btn-small" onclick="eseguiRifiutaModificaProfilo(${r.riga}, '${r.cip}')">RIFIUTA</button></div></div>`;
+     });
+     document.getElementById('admin-modifiche-container').innerHTML = html;
+  }).getRichiesteModificaProfilo(utenteCorrente.ruoloBase);
+}
+
+function eseguiApprovaModificaProfilo(riga, cip) {
+    let payload = { grado: document.getElementById(`mod-gr-${riga}`).value, reparto: document.getElementById(`mod-rep-${riga}`).value, provServizio: document.getElementById(`mod-prov-${riga}`).value, email: document.getElementById(`mod-em-${riga}`).value, telefono: document.getElementById(`mod-tel-${riga}`).value, cf: document.getElementById(`mod-cf-${riga}`).value, ibans: JSON.parse(document.getElementById(`mod-ibans-${riga}`).value), vetture: JSON.parse(document.getElementById(`mod-vetture-${riga}`).value) };
+    google.script.run.withSuccessHandler(res => { if(res.success) { showToast("Modifica approvata!"); caricaModificheProfilo(); caricaNotificheDashboard(false); } else alert(res.error); }).approvaModificaProfilo(riga, cip, JSON.stringify(payload), "APPROVATO");
+}
+
+function eseguiRifiutaModificaProfilo(riga, cip) { 
+    google.script.run.withSuccessHandler(res => { if(res.success) { showToast("Modifica rifiutata."); caricaModificheProfilo(); caricaNotificheDashboard(false); } else alert(res.error); }).approvaModificaProfilo(riga, cip, "{}", "RIFIUTATO"); 
+}
+</script>

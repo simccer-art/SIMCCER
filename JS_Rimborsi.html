@@ -1,0 +1,282 @@
+<script>
+// ==========================================
+// FUNZIONI GESTIONE RIMBORSI
+// ==========================================
+
+function popolaTendineRimborsi() {
+   let selIban = document.getElementById('rimb-iban'); selIban.innerHTML = `<option value="">-- Seleziona IBAN --</option>`; if(utenteCorrente.ibans) { utenteCorrente.ibans.forEach(i => { selIban.innerHTML += `<option value="${i.iban}">${i.alias} (${i.iban})</option>`; }); }
+   let selVet = document.getElementById('rimb-vettura'); selVet.innerHTML = `<option value="">-- Seleziona Vettura --</option>`; if(utenteCorrente.vetture) { utenteCorrente.vetture.forEach(v => { selVet.innerHTML += `<option value="${v.modello} - ${v.targa}">${v.modello} (${v.targa})</option>`; }); }
+   let oggi = new Date(); document.getElementById('rimb-data-odierna').value = String(oggi.getDate()).padStart(2, '0') + "/" + String(oggi.getMonth() + 1).padStart(2, '0') + "/" + oggi.getFullYear();
+   let selSegr = document.getElementById('rimb-segreteria-pagante'); selSegr.innerHTML = '';
+   if (utenteCorrente.provincia === 'EMILIA ROMAGNA') { selSegr.innerHTML += `<option value="Regionale (EMILIA ROMAGNA)">Regionale (EMILIA ROMAGNA)</option><option value="Nazionale">Nazionale</option>`; } 
+   else { selSegr.innerHTML += `<option value="Provinciale (${utenteCorrente.provincia})">Provinciale (${utenteCorrente.provincia})</option><option value="Regionale (EMILIA ROMAGNA)">Regionale (EMILIA ROMAGNA)</option>`; }
+}
+
+function inizializzaFormRimborsi() {
+    document.getElementById('container-tratte').innerHTML = ''; document.getElementById('container-spese').innerHTML = '';
+    document.getElementById('tot-km').innerText = "0"; document.getElementById('tot-importo-a').innerText = "0.00"; document.getElementById('tot-importo-b').innerText = "0.00"; document.getElementById('tot-generale').innerText = "0.00";
+    aggiungiRigaTratta(); aggiungiRigaSpesa();
+}
+
+function aggiungiRigaTratta() {
+    let container = document.getElementById('container-tratte'); let id = Date.now() + Math.floor(Math.random() * 100); let div = document.createElement('div');
+    div.id = 'tratta-' + id; div.style.display = 'flex'; div.style.gap = '10px'; div.style.marginBottom = '10px'; div.style.alignItems = 'flex-end'; div.style.flexWrap = 'wrap';
+    div.innerHTML = `<div style="flex: 1; min-width:130px;"><label style="font-size:11px;">Data Tratta</label><input type="date" class="input-tratta-data" style="margin:0; font-size:14px;"></div><div style="flex: 2; min-width:150px;"><label style="font-size:11px;">Da (Partenza)</label><input type="text" class="input-tratta-partenza" placeholder="Es. Bologna" style="margin:0; font-size:12px; text-transform: uppercase;"></div><div style="flex: 2; min-width:150px;"><label style="font-size:11px;">A (Arrivo)</label><input type="text" class="input-tratta-arrivo" placeholder="Es. Roma" style="margin:0; font-size:12px; text-transform: uppercase;"></div><div style="flex: 1; min-width:80px;"><label style="font-size:11px;">Km</label><input type="number" class="input-tratta-km" min="0" value="0" style="margin:0; font-size:12px;" oninput="calcolaTotaliRimborso()"></div><button class="btn btn-danger btn-small" style="margin:0; height:36px;" onclick="document.getElementById('tratta-${id}').remove(); calcolaTotaliRimborso();">X</button>`;
+    container.appendChild(div);
+}
+
+function aggiungiRigaSpesa() {
+    let container = document.getElementById('container-spese'); let id = Date.now() + Math.floor(Math.random() * 100); let div = document.createElement('div');
+    div.id = 'spesa-' + id; div.style.display = 'flex'; div.style.gap = '10px'; div.style.marginBottom = '10px'; div.style.alignItems = 'flex-end'; div.style.flexWrap = 'wrap';
+    div.innerHTML = `<div style="flex: 1; min-width:130px;"><label style="font-size:11px;">Data Spesa</label><input type="date" class="input-spesa-data" style="margin:0; font-size:14px;"></div><div style="flex: 2; min-width:120px;"><label style="font-size:11px;">Categoria</label><select class="input-spesa-categoria" style="margin:0; font-size:12px; height:36px;"><option value="Pedaggio Autostradale">Pedaggio Autostradale</option><option value="Treno / Aereo / Nave">Treno / Aereo / Nave</option><option value="Taxi / Trasporti Locali">Taxi / Trasporti Locali</option><option value="Vitto (Pasti)">Vitto (Pasti)</option><option value="Alloggio (Hotel)">Alloggio (Hotel)</option><option value="Altro">Altro</option></select></div><div style="flex: 2; min-width:150px;"><label style="font-size:11px;">Nr. Giustificativo</label><input type="text" class="input-spesa-doc" placeholder="Es. Scontrino n. 12" style="margin:0; font-size:12px; text-transform: uppercase;"></div><div style="flex: 1; min-width:80px;"><label style="font-size:11px;">Importo (€)</label><input type="number" class="input-spesa-importo" min="0" step="0.01" value="0.00" style="margin:0; font-size:12px;" oninput="calcolaTotaliRimborso()"></div><button class="btn btn-danger btn-small" style="margin:0; height:36px;" onclick="document.getElementById('spesa-${id}').remove(); calcolaTotaliRimborso();">X</button>`;
+    container.appendChild(div);
+}
+
+function calcolaTotaliRimborso() {
+    let totKm = 0; document.querySelectorAll('.input-tratta-km').forEach(inp => { totKm += (parseFloat(inp.value) || 0); });
+    let importoA = totKm * 0.50; document.getElementById('tot-km').innerText = totKm; document.getElementById('tot-importo-a').innerText = importoA.toFixed(2);
+    let importoB = 0; document.querySelectorAll('.input-spesa-importo').forEach(inp => { importoB += (parseFloat(inp.value) || 0); }); document.getElementById('tot-importo-b').innerText = importoB.toFixed(2);
+    let totaleGenerale = importoA + importoB; document.getElementById('tot-generale').innerText = totaleGenerale.toFixed(2);
+}
+
+function raccogliDatiRimborso() {
+    let motivo = document.getElementById('rimb-motivo').value.trim(); let iban = document.getElementById('rimb-iban').value; let vettura = document.getElementById('rimb-vettura').value; let protocollo = document.getElementById('rimb-protocollo').value.trim(); let dataOdierna = document.getElementById('rimb-data-odierna').value; let segreteriaPagante = document.getElementById('rimb-segreteria-pagante').value;
+    if(!protocollo) { alert("Inserisci il Numero di Protocollo."); return null; } if(!motivo) { alert("Inserisci il Motivo/Evento della spesa."); return null; } if(!iban) { alert("Seleziona un IBAN."); return null; }
+    
+    let tratte = []; document.querySelectorAll('[id^="tratta-"]').forEach(riga => {
+        let data = riga.querySelector('.input-tratta-data').value; let partenza = riga.querySelector('.input-tratta-partenza').value.trim(); let arrivo = riga.querySelector('.input-tratta-arrivo').value.trim(); let km = parseFloat(riga.querySelector('.input-tratta-km').value) || 0;
+        let itinerario = ""; if (partenza && arrivo) itinerario = partenza + " - " + arrivo; else if (partenza) itinerario = partenza; else if (arrivo) itinerario = arrivo;
+        if(data || itinerario || km > 0) tratte.push({ data: formattaDataIT(data), itinerario: itinerario, km: km });
+    });
+
+    let spese = []; document.querySelectorAll('[id^="spesa-"]').forEach(riga => {
+        let data = riga.querySelector('.input-spesa-data').value; let cat = riga.querySelector('.input-spesa-categoria').value; let doc = riga.querySelector('.input-spesa-doc').value.trim(); let imp = parseFloat(riga.querySelector('.input-spesa-importo').value) || 0;
+        if(data || cat || doc || imp > 0) spese.push({ data: formattaDataIT(data), categoria: cat, doc: doc, importo: imp });
+    });
+
+    if(tratte.length === 0 && spese.length === 0) { alert("Inserisci almeno una tratta chilometrica o una spesa."); return null; }
+
+    return { richiedente: `${utenteCorrente.cognome} ${utenteCorrente.nome}`, cip: utenteCorrente.cip, provincia: utenteCorrente.provincia, cf: utenteCorrente.cf || "", motivo: motivo, protocollo: protocollo, dataOdierna: dataOdierna, segreteriaPagante: segreteriaPagante, iban: iban, vettura: vettura, tratte: tratte, spese: spese, totaleKm: parseFloat(document.getElementById('tot-km').innerText), importoA: parseFloat(document.getElementById('tot-importo-a').innerText), importoB: parseFloat(document.getElementById('tot-importo-b').innerText), totaleGenerale: parseFloat(document.getElementById('tot-generale').innerText) };
+}
+
+function generaPDFRimborsoDaFirmare(e) {
+    if (e) e.preventDefault();
+    let payload = raccogliDatiRimborso(); if(!payload) return;
+    const btn = e.target; const msgBox = document.getElementById('msg-rimb-pdf');
+    msgBox.innerHTML = "⏳ Generazione PDF in corso..."; msgBox.style.display = "block"; btn.disabled = true;
+
+    google.script.run.withSuccessHandler(res => {
+        btn.disabled = false;
+        if(res && res.success) {
+            msgBox.innerHTML = "✅ PDF Generato!";
+            let win = window.open(res.url, '_blank');
+            if (!win) {
+                msgBox.innerHTML = `<div style="background:#fff0f0; padding:10px; border:1px solid red; margin-top:10px;"><p style="color:red; margin:0 0 5px 0;">⚠️ Pop-up bloccato dal browser.</p><a href="${res.url}" target="_blank" class="btn btn-danger" style="display:block; text-align:center; text-decoration:none;">CLICCA QUI PER APRIRE IL PDF</a></div>`;
+            }
+            document.getElementById('div-upload-rimborso').style.display = 'block';
+        } else alert("Errore: " + res.error);
+    }).withFailureHandler(err => { btn.disabled = false; alert("Errore server: " + err.message); }).generaPDFRimborsoDaFirmare(payload);
+}
+
+function inviaRichiestaRimborsoDefinitiva() {
+    let payload = raccogliDatiRimborso(); if(!payload) return;
+    let fileInput = document.getElementById('rimb-file'); if(!fileInput.files.length) { alert("Devi caricare il file firmato prima di inviare!"); return; }
+    let file = fileInput.files[0]; if(file.size > 10 * 1024 * 1024) { alert("Il file è troppo grande. Assicurati che sia inferiore a 10 MB."); return; }
+    let msgBox = document.getElementById('msg-rimb-invio'); msgBox.style.color = "black"; msgBox.innerText = "Upload e Invio in corso. Attendere prego...";
+    let reader = new FileReader();
+    reader.onload = function(e) {
+        let base64Data = e.target.result.split(',')[1]; let mimeType = file.type || 'application/pdf';
+        google.script.run.withSuccessHandler(res => {
+            if(res && res.success) {
+                msgBox.style.color = "green"; msgBox.innerText = "Rimborso Inviato con Successo!";
+                setTimeout(() => {
+                    inizializzaFormRimborsi(); document.getElementById('rimb-protocollo').value = ""; document.getElementById('rimb-iban').selectedIndex = 0; document.getElementById('rimb-vettura').selectedIndex = 0; document.getElementById('rimb-segreteria-pagante').selectedIndex = 0; document.getElementById('rimb-file').value = ""; document.getElementById('div-upload-rimborso').style.display = "none"; document.getElementById('msg-rimb-pdf').style.display = "none"; msgBox.innerText = "";
+                    mostraSezioneRimborsi('mie-richieste-rimborsi'); caricaMieRichiesteRimborsi(); caricaNotificheDashboard(false);
+                }, 2000);
+            } else { msgBox.style.color = "red"; msgBox.innerText = "Errore dal server: " + (res.error || "Errore sconosciuto"); }
+        }).withFailureHandler(err => { msgBox.style.color = "red"; msgBox.innerText = "Errore di connessione: " + err.message; }).salvaNuovoRimborso(payload, base64Data, mimeType, file.name);
+    };
+    reader.onerror = function() { msgBox.style.color = "red"; msgBox.innerText = "Errore durante la lettura del file dal tuo dispositivo."; }; reader.readAsDataURL(file);
+}
+
+function caricaMieRichiesteRimborsi() {
+    azzeraNotificaRimborsiLocale('MIE'); document.getElementById('tabella-mie-rimborsi').innerHTML = "Caricamento...";
+    google.script.run.withSuccessHandler(lista => {
+        let html = `<table><tr><th>Data Invio</th><th>Dettagli Spesa</th><th>File</th><th>Stato</th></tr>`;
+        if(lista.length === 0) html = "<p>Non hai richiesto alcun rimborso.</p>";
+        else {
+            lista.forEach(r => {
+                let stB = `<span style="border: 2px solid ${getColoreStato(r.stato)}; color: ${getColoreStato(r.stato)}; padding: 4px 8px; border-radius: 6px; font-size: 12px; font-weight: bold; background-color: white; display: inline-block;">${r.stato}</span>`;
+                let opTesto = ""; if (r.operatore && String(r.operatore).trim() !== "") { let prefisso = r.stato === 'PAGATO' ? "dal Tesoriere" : "da"; opTesto = `<div style="margin-top: 6px; font-size: 11px; font-weight: normal; color: #555; line-height: 1.3;">${prefisso}<br>${String(r.operatore).toUpperCase()}</div>`; }
+                let note = ""; if(r.note && r.stato !== 'PAGATO') { note = `<div style="margin-top:10px; font-size:12px; color:var(--danger); border-left:3px solid var(--danger); padding-left:5px;"><b>Motivo:</b> ${r.note}</div>`; }
+                let az = ""; 
+                if(r.stato === 'DA CORREGGERE') { az = `<button class="btn btn-small btn-danger" style="margin-top:10px;" onclick="alert('Funzione in sviluppo. Elimina e crea una nuova richiesta.')">RICARICA FILE / CORREGGI</button>`; } 
+                else if (r.stato === 'IN ATTESA ALLEGATO') {
+                    let safeJson = (r.jsonStr || "{}").replace(/'/g, "&#39;").replace(/"/g, "&quot;");
+                    az = `<div style="margin-top:10px; background:#f4f6f8; padding:10px; border:1px dashed var(--primary);"><label style="font-size:11px; font-weight:bold;">CARICA IL PDF FIRMATO:</label><input type="file" id="file-integra-${r.riga}" accept="application/pdf, image/*" style="font-size:11px; width:100%; margin:5px 0; padding:2px;"><div style="display: flex; gap: 5px; margin-top: 5px;"><button class="btn btn-success btn-small" style="flex:1; margin:0; padding: 6px 2px; font-size:10px; font-weight:normal;" onclick="integraAllegatoRimborso(${r.riga}, this)">TRASMETTI</button><button class="btn btn-vista btn-small" style="flex:1; margin:0; padding: 6px 2px; font-size:10px; font-weight:normal;" onclick="modificaBozzaRimborso(${r.riga}, '${safeJson}')">MODIFICA</button><button class="btn btn-danger btn-small" style="flex:1; margin:0; padding: 6px 2px; font-size:10px; font-weight:normal;" onclick="eliminaRimborsoInAttesa(${r.riga})">ELIMINA</button></div></div>`;
+                }
+                let importoSpesatoHtml = (r.stato === 'PAGATO') ? `<br>Importo spesato: <b style="color:var(--success);">€ ${r.importoAutorizzato !== undefined ? r.importoAutorizzato : r.importo}</b>` : "";
+                html += `<tr><td>${r.dataInvio}</td><td>Data Spesa: <b>${r.dataSpesa}</b><br>Prot: <b>${r.protocollo}</b> - A carico di: <b style="color:var(--danger);">${r.segreteriaPagante}</b><br>Importo: <b style="color:var(--danger);">€ ${r.importo}</b>${importoSpesatoHtml}<br><i>${r.descrizione}</i></td><td style="text-align:center;"><a href="${r.fileUrl}" target="_blank" class="btn btn-vista btn-small">VEDI DOC</a></td><td style="text-align:center; width:20%;">${stB}${opTesto}${note}${az}</td></tr>`;
+            }); html += "</table>";
+        } document.getElementById('tabella-mie-rimborsi').innerHTML = html;
+    }).getRimborsiUtente(utenteCorrente.cip);
+}
+
+function caricaGestioneRimborsi() {
+    azzeraNotificaRimborsiLocale('GESTIONE'); document.getElementById('tabella-gestione-rimborsi').innerHTML = "Caricamento in corso..."; document.getElementById('tabella-storico-rimborsi').innerHTML = "Caricamento in corso...";
+    google.script.run.withSuccessHandler(dati => {
+        let hG = `<table><tr><th>Dettagli Spesa</th><th>File</th><th>Stato</th><th>Azioni</th></tr>`;
+        if(dati.daGestire.length === 0) hG = "<p>Nessun rimborso da gestire.</p>";
+        else {
+            dati.daGestire.forEach(r => {
+                let az = ""; let divMotivo = `<div id="div-motivo-rimb-${r.riga}" style="display:none; margin-top:10px;"><input type="text" id="motivo-rimb-${r.riga}" placeholder="Inserisci motivazione..." style="font-size:11px; padding:5px; margin:0 0 5px 0;"><br><button class="btn btn-danger btn-small" onclick="inviaAzioneRimborsoMotivo(${r.riga}, 'RIFIUTATO')">CONFERMA RIFIUTO</button> <button class="btn btn-warning btn-small" style="color:black;" onclick="inviaAzioneRimborsoMotivo(${r.riga}, 'DA CORREGGERE')">RESTITUISCI X CORREZ.</button></div>`;
+                if (r.stato === 'IN ATTESA' && r.canApprove) { 
+                    az = `<div style="display:flex; align-items:center; gap:5px; margin-bottom:5px;"><input type="number" step="0.01" id="auth-imp-${r.riga}" value="${r.importo}" style="width:75px; padding:4px; font-size:12px; border:1px solid var(--success); font-weight:bold; color:var(--success);" title="Importo da autorizzare"><button class="btn btn-success btn-small" style="margin:0;" onclick="eseguiAzioneRimborso(${r.riga}, 'APPROVATO')">APPROVA</button></div><button class="btn btn-danger btn-small" onclick="mostraMotivoRimborso(${r.riga})">RIFIUTA/CORREGGI</button>`; 
+                } 
+                else if (r.stato === 'APPROVATO' && r.canPay) { az = `<button class="btn btn-pagato btn-small" onclick="eseguiPagaRimborso(${r.riga}, this, ${JSON.stringify(r).replace(/"/g, '&quot;')})">TIMBRA E PAGA</button> <button class="btn btn-danger btn-small" onclick="mostraMotivoRimborso(${r.riga})">RIFIUTA</button>`; }
+                hG += `<tr><td>Inviato: <b>${r.dataInvio}</b> da <b>${r.richiedente}</b> (${r.provincia})<br>Prot: <b>${r.protocollo}</b> - A carico di: <b style="color:var(--danger);">${r.segreteriaPagante}</b><br>Importo: <b style="color:var(--danger); font-size:15px;">€ ${r.importo}</b><br><i>${r.descrizione}</i><br><small style="color:#666;">IBAN: ${r.iban||'-'}</small></td><td style="text-align:center;"><a href="${r.fileUrl}" target="_blank" class="btn btn-vista btn-small">VEDI DOC</a></td><td style="text-align:center;"><span style="border: 2px solid ${getColoreStato(r.stato)}; color: ${getColoreStato(r.stato)}; padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: bold;">${r.stato}</span></td><td style="width: 25%;">${az}${divMotivo}</td></tr>`;
+            }); hG += "</table>";
+        } document.getElementById('tabella-gestione-rimborsi').innerHTML = hG;
+
+        storicoRimborsiCache = dati.storico || [];
+        let selBen = document.getElementById('rimb-filtro-ben'); let beneficiariUnici = [];
+        storicoRimborsiCache.forEach(r => { let nome = r.richiedente ? r.richiedente.trim() : ""; if(nome && !beneficiariUnici.includes(nome)) beneficiariUnici.push(nome); });
+        beneficiariUnici.sort(); let optionsHtml = '<option value="TUTTI">Tutti i Beneficiari</option>';
+        beneficiariUnici.forEach(b => { optionsHtml += `<option value="${b}">${b}</option>`; });
+        if(selBen) selBen.innerHTML = optionsHtml;
+
+        applicaFiltriStoricoRimborsi(); 
+    }).getRimborsiGestione(utenteCorrente);
+}
+
+function applicaFiltriStoricoRimborsi() {
+    if (!storicoRimborsiCache) return;
+    let fAnno = document.getElementById('rimb-filtro-anno').value; let fMese = document.getElementById('rimb-filtro-mese').value; let fBen = document.getElementById('rimb-filtro-ben').value; let fSegr = document.getElementById('rimb-filtro-segr').value;
+    let filtrati = storicoRimborsiCache.filter(r => {
+        let parts = String(r.dataInvio).split('/'); let rAnno = parts.length === 3 ? parts[2].substring(0,4) : ""; let rMese = parts.length === 3 ? parseInt(parts[1]).toString() : "";
+        let matchAnno = (fAnno === 'TUTTI' || rAnno === fAnno); let matchMese = (fMese === 'TUTTI' || rMese === fMese); let matchBen = (fBen === 'TUTTI' || String(r.richiedente).trim() === fBen); let matchSegr = (fSegr === 'TUTTE' || String(r.segreteriaPagante).includes(fSegr));
+        return matchAnno && matchMese && matchBen && matchSegr;
+    });
+    renderStoricoRimborsi(filtrati);
+}
+
+function renderStoricoRimborsi(lista) {
+    let totaleCalcolato = 0; let hS = `<table><tr><th>Dettagli Spesa</th><th>File</th><th>Stato</th></tr>`;
+    if(lista.length === 0) { hS = "<p style='padding:15px;'>Nessun rimborso trovato con i filtri attuali.</p>"; } 
+    else {
+        lista.forEach(r => {
+            if (r.stato === 'PAGATO') { let imp = r.importoAutorizzato !== undefined && r.importoAutorizzato !== null && r.importoAutorizzato !== "" ? parseFloat(r.importoAutorizzato) : parseFloat(r.importo); if (!isNaN(imp)) totaleCalcolato += imp; }
+            let stB = `<span style="border: 2px solid ${getColoreStato(r.stato)}; color: ${getColoreStato(r.stato)}; padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: bold;">${r.stato}</span>`;
+            let note = ""; if(r.note) { if(r.stato === 'PAGATO') { note = `<br><small style="color:var(--pagato); font-weight:bold;">${r.note}</small>`; } else { note = `<br><small style="color:var(--danger);">Motivo: ${r.note}</small>`; } }
+            let op = r.operatore ? `<br><small style="color:#888;">Da: ${r.operatore}</small>` : "";
+            let impSpesatoVal = (r.importoAutorizzato !== undefined && r.importoAutorizzato !== "") ? r.importoAutorizzato : r.importo;
+            let importoSpesatoHtml = (r.stato === 'PAGATO') ? `<br>Importo spesato: <b style="color:var(--success); font-size:15px;">€ ${impSpesatoVal}</b>` : "";
+            hS += `<tr><td>Inviato: <b>${r.dataInvio}</b> da <b>${r.richiedente}</b> (${r.provincia})<br>Prot: <b>${r.protocollo}</b> - A carico di: <b style="color:var(--danger);">${r.segreteriaPagante}</b><br>Importo: <b style="color:var(--danger); font-size:15px;">€ ${r.importo}</b>${importoSpesatoHtml}<br><i>${r.descrizione}</i></td><td style="text-align:center;"><a href="${r.fileUrl}" target="_blank" class="btn btn-vista btn-small">VEDI DOC</a></td><td style="text-align:center;">${stB}${note}${op}</td></tr>`;
+        }); hS += "</table>";
+    }
+    document.getElementById('tabella-storico-rimborsi').innerHTML = hS;
+    let elTotale = document.getElementById('rimb-totale-filtro'); if (elTotale) elTotale.innerText = "€ " + totaleCalcolato.toFixed(2);
+}
+
+function mostraMotivoRimborso(riga) { document.getElementById(`div-motivo-rimb-${riga}`).style.display = 'block'; }
+function inviaAzioneRimborsoMotivo(riga, stato) { let motivo = document.getElementById(`motivo-rimb-${riga}`).value.trim(); if(!motivo && stato === 'DA CORREGGERE') return alert("Devi inserire un commento per la correzione."); eseguiAzioneRimborso(riga, stato, motivo); }
+
+function eseguiAzioneRimborso(riga, stato, motivo="") {
+    let importoAutorizzato = null;
+    if (stato === 'APPROVATO') {
+        let inputEl = document.getElementById('auth-imp-' + riga);
+        if (inputEl && inputEl.value.trim() !== "") {
+            importoAutorizzato = parseFloat(inputEl.value.replace(',', '.'));
+            if (isNaN(importoAutorizzato)) { alert("Importo non valido. Inserisci un numero."); return; }
+        }
+    }
+    google.script.run.withSuccessHandler(res => {
+        if(res.success) { caricaGestioneRimborsi(); caricaNotificheDashboard(false); } else alert("Errore: " + res.error);
+    }).cambiaStatoRimborso(riga, stato, motivo, utenteCorrente.cognome, importoAutorizzato);
+}
+
+function eseguiPagaRimborso(riga, btn, datiRimbJSON) {
+    let dati = typeof datiRimbJSON === 'string' ? JSON.parse(datiRimbJSON) : datiRimbJSON;
+    let importoPredefinito = dati.importoAutorizzato !== undefined ? dati.importoAutorizzato : dati.importo;
+    let input = prompt("Conferma o modifica l'importo autorizzato per il pagamento:", importoPredefinito);
+    if (input === null) return; 
+    let importoAutorizzato = parseFloat(input.replace(',', '.'));
+    if (isNaN(importoAutorizzato)) { alert("Importo non valido."); return; }
+    btn.innerText = "ATTENDERE..."; btn.disabled = true;
+    google.script.run.withSuccessHandler(res => {
+        if(res && res.success) { window.open(res.url, '_blank'); caricaGestioneRimborsi(); caricaNotificheDashboard(false); } 
+        else { alert("Errore: " + res.error); btn.innerText = "TIMBRA E PAGA"; btn.disabled = false; }
+    }).generaTimbroEPagaRimborso(datiRimbJSON, utenteCorrente.cognome, importoAutorizzato);
+}
+
+function salvaRimborsoInAttesa() {
+    let payload = raccogliDatiRimborso(); if(!payload) return;
+    let msgBox = document.getElementById('msg-rimb-pdf'); msgBox.innerHTML = "⏳ Salvataggio in corso..."; msgBox.style.display = "block";
+    google.script.run.withSuccessHandler(res => {
+        if(res.success) {
+            msgBox.innerHTML = "✅ Salvato! Troverai la pratica nella scheda 'Le Mie Richieste'.";
+            setTimeout(() => {
+                inizializzaFormRimborsi(); document.getElementById('rimb-protocollo').value = ""; document.getElementById('rimb-iban').selectedIndex = 0; document.getElementById('rimb-vettura').selectedIndex = 0; document.getElementById('rimb-segreteria-pagante').selectedIndex = 0; document.getElementById('rimb-file').value = ""; document.getElementById('div-upload-rimborso').style.display = "none"; document.getElementById('msg-rimb-pdf').style.display = "none";
+                mostraSezioneRimborsi('mie-richieste-rimborsi'); caricaMieRichiesteRimborsi(); caricaNotificheDashboard(false);
+            }, 2000);
+        } else { msgBox.innerHTML = "❌ Errore: " + res.error; }
+    }).salvaRimborsoSenzaFile(payload);
+}
+
+function integraAllegatoRimborso(riga, btn) {
+    let fileInput = document.getElementById('file-integra-' + riga);
+    if(!fileInput.files.length) { alert("Devi selezionare un file da allegare prima di inviare."); return; }
+    let file = fileInput.files[0]; if(file.size > 10 * 1024 * 1024) { alert("File troppo grande (Max 10 MB)."); return; }
+    btn.disabled = true; btn.innerText = "CARICAMENTO...";
+    let reader = new FileReader();
+    reader.onload = function(e) {
+        let base64Data = e.target.result.split(',')[1]; let mimeType = file.type || 'application/pdf';
+        google.script.run.withSuccessHandler(res => {
+            if(res && res.success) { showToast("Allegato caricato! Rimborso inviato con successo al Segretario."); caricaMieRichiesteRimborsi(); } 
+            else { alert("Errore dal server: " + res.error); btn.disabled = false; btn.innerText = "TRASMETTI"; }
+        }).withFailureHandler(err => { alert("Errore connessione: " + err.message); btn.disabled = false; btn.innerText = "TRASMETTI"; }).allegaFileRimborso(riga, utenteCorrente.cip, base64Data, mimeType, file.name);
+    }; reader.readAsDataURL(file);
+}
+
+function eliminaRimborsoInAttesa(riga) {
+    if(!confirm("Sicuro di voler eliminare questa bozza incompleta? L'operazione è irreversibile.")) return;
+    google.script.run.withSuccessHandler(res => {
+        if(res.success) { showToast("Bozza eliminata con successo."); caricaMieRichiesteRimborsi(); } else alert("Errore: " + res.error);
+    }).eliminaRimborso(riga, utenteCorrente.cip);
+}
+
+function modificaBozzaRimborso(riga, jsonString) {
+    if(!confirm("La bozza attuale verrà caricata nel modulo per essere modificata. Procedere?")) return;
+    let dati = JSON.parse(jsonString);
+    mostraSezioneRimborsi('componi-rimborso'); evidenziaBottone('nav-r-nuovo');
+    
+    document.getElementById('rimb-protocollo').value = dati.protocollo || ""; document.getElementById('rimb-motivo').value = dati.motivo || dati.descrizione || "";
+    if (dati.segreteriaPagante) document.getElementById('rimb-segreteria-pagante').value = dati.segreteriaPagante;
+    if (dati.iban) document.getElementById('rimb-iban').value = dati.iban;
+    if (dati.vettura) document.getElementById('rimb-vettura').value = dati.vettura;
+    
+    document.getElementById('container-tratte').innerHTML = '';
+    if (dati.tratte && dati.tratte.length > 0) {
+        dati.tratte.forEach(t => {
+            aggiungiRigaTratta(); let lastRiga = document.getElementById('container-tratte').lastElementChild;
+            let dIso = ""; if(t.data && t.data.includes('/')) { let p = t.data.split('/'); dIso = `${p[2]}-${p[1]}-${p[0]}`; } else dIso = t.data;
+            lastRiga.querySelector('.input-tratta-data').value = dIso;
+            let part = "", arr = ""; if(t.itinerario && t.itinerario.includes(' - ')) { let parts = t.itinerario.split(' - '); part = parts[0]; arr = parts[1]; } else { part = t.itinerario || ""; }
+            lastRiga.querySelector('.input-tratta-partenza').value = part; lastRiga.querySelector('.input-tratta-arrivo').value = arr; lastRiga.querySelector('.input-tratta-km').value = t.km || 0;
+        });
+    } else { aggiungiRigaTratta(); } 
+    
+    document.getElementById('container-spese').innerHTML = '';
+    if (dati.spese && dati.spese.length > 0) {
+        dati.spese.forEach(s => {
+            aggiungiRigaSpesa(); let lastRiga = document.getElementById('container-spese').lastElementChild;
+            let dIso = ""; if(s.data && s.data.includes('/')) { let p = s.data.split('/'); dIso = `${p[2]}-${p[1]}-${p[0]}`; } else dIso = s.data;
+            lastRiga.querySelector('.input-spesa-data').value = dIso; lastRiga.querySelector('.input-spesa-categoria').value = s.categoria || "Altro"; lastRiga.querySelector('.input-spesa-doc').value = s.doc || ""; lastRiga.querySelector('.input-spesa-importo').value = s.importo || 0;
+        });
+    } else { aggiungiRigaSpesa(); }
+
+    calcolaTotaliRimborso();
+    google.script.run.eliminaRimborso(riga, utenteCorrente.cip);
+    showToast("✅ Bozza caricata! Effettua le correzioni e salvala nuovamente.");
+}
+</script>

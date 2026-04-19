@@ -1,0 +1,105 @@
+<script>
+// ==========================================
+// FUNZIONI GESTIONE NOTIFICHE
+// ==========================================
+
+function caricaNotificheDashboard(isFirstLoad = false) {
+    google.script.run.withSuccessHandler(counts => {
+        if(!counts) return; 
+        let liv = GERARCHIA[utenteCorrente.ruoloBase] || 1; 
+        window.lastCountsObj = counts; 
+        
+        let actualBadgeGestioneP = 0, actualBadgeMieP = 0;
+        let actualBadgeGestioneV = 0, actualBadgeMieV = 0;
+        let actualBadgeGestioneR = 0, actualBadgeMieR = 0;
+
+        let savedHashMieP = localStorage.getItem('permessi_hash_mie_' + utenteCorrente.cip) || "";
+        let savedHashGestioneP = localStorage.getItem('permessi_hash_gestione_' + utenteCorrente.cip) || "";
+        actualBadgeMieP = (counts.permessi.hashMie !== "" && counts.permessi.hashMie !== savedHashMieP) ? (counts.permessi.mieVistate + counts.permessi.mieApprovate + counts.permessi.mieEvase + counts.permessi.mieRifiutate) : 0;
+        let badgeGestionePermessi = counts.permessi.daVistare + counts.permessi.daApprovare + counts.permessi.daEvadere;
+        actualBadgeGestioneP = (counts.permessi.hashGestione !== "" && counts.permessi.hashGestione !== savedHashGestioneP) ? badgeGestionePermessi : 0;
+
+        let savedHashMieV = localStorage.getItem('visite_hash_mie_' + utenteCorrente.cip) || "";
+        let savedHashGestioneV = localStorage.getItem('visite_hash_gestione_' + utenteCorrente.cip) || "";
+        actualBadgeMieV = (counts.visite.hashMie !== "" && counts.visite.hashMie !== savedHashMieV) ? (counts.visite.mieApprovate + counts.visite.mieRifiutate + counts.visite.mieInAttesa + (counts.visite.mieEvase || 0)) : 0;
+        actualBadgeGestioneV = (counts.visite.hashGestione !== "" && counts.visite.hashGestione !== savedHashGestioneV) ? (counts.visite.daApprovare + counts.visite.daEvadere) : 0;
+
+        let savedHashMieR = localStorage.getItem('rimb_hash_mie_' + utenteCorrente.cip) || "";
+        let savedHashGestioneR = localStorage.getItem('rimb_hash_gestione_' + utenteCorrente.cip) || "";
+        actualBadgeMieR = (counts.rimborsi.hashMie !== "" && counts.rimborsi.hashMie !== savedHashMieR) ? (counts.rimborsi.miePagate + counts.rimborsi.mieRifiutate + counts.rimborsi.mieDaCorreggere) : 0;
+        actualBadgeGestioneR = (counts.rimborsi.hashGestione !== "" && counts.rimborsi.hashGestione !== savedHashGestioneR) ? (counts.rimborsi.daApprovare + counts.rimborsi.daPagare) : 0;
+
+        let elDashP = document.getElementById('badge-dash-permessi');
+        if (elDashP) { elDashP.innerText = actualBadgeGestioneP + actualBadgeMieP; elDashP.style.display = (actualBadgeGestioneP + actualBadgeMieP > 0) ? 'flex' : 'none'; }
+        
+        let elDashV = document.getElementById('badge-dash-visite');
+        if (elDashV) { elDashV.innerText = actualBadgeGestioneV + actualBadgeMieV; elDashV.style.display = (actualBadgeGestioneV + actualBadgeMieV > 0) ? 'flex' : 'none'; }
+
+        let elDashR = document.getElementById('badge-dash-rimborsi');
+        if (elDashR) { elDashR.innerText = actualBadgeGestioneR + actualBadgeMieR; elDashR.style.display = (actualBadgeGestioneR + actualBadgeMieR > 0) ? 'flex' : 'none'; }
+
+        let actualBadgeGestioneRub = 0;
+        if (counts.rubrica) {
+            let savedHashRub = localStorage.getItem('rub_hash_gestione_' + utenteCorrente.cip) || "";
+            actualBadgeGestioneRub = (counts.rubrica.hashGestione !== "" && counts.rubrica.hashGestione !== savedHashRub) ? counts.rubrica.daApprovare : 0;
+            
+            let elDashRub = document.getElementById('badge-dash-rubrica');
+            if (elDashRub) { 
+                elDashRub.innerText = actualBadgeGestioneRub; 
+                elDashRub.style.display = (actualBadgeGestioneRub > 0) ? 'flex' : 'none'; 
+            }
+            let elAdminRub = document.getElementById('badge-rubrica-admin');
+            if (elAdminRub) {
+                elAdminRub.innerText = actualBadgeGestioneRub;
+                elAdminRub.style.display = (actualBadgeGestioneRub > 0) ? 'flex' : 'none';
+            }
+        }
+        if (modalitaAttuale !== 'DASHBOARD') {
+            aggiornaNotificheInterne(counts, liv, isFirstLoad, actualBadgeGestioneV, actualBadgeMieV, actualBadgeGestioneR, actualBadgeMieR, actualBadgeGestioneP, actualBadgeMieP);
+        }
+    }).getConteggioNotifiche(utenteCorrente);
+}
+
+function aggiornaNotificheInterne(counts, liv, isFirstLoad, actualBadgeGestioneV, actualBadgeMieV, actualBadgeGestioneR, actualBadgeMieR, actualBadgeGestioneP, actualBadgeMieP) {
+    if (modalitaAttuale === 'PERMESSI') {
+        let elGestione = document.getElementById('badge-gestione'); if (elGestione) { elGestione.innerText = actualBadgeGestioneP; elGestione.style.display = actualBadgeGestioneP > 0 ? 'flex' : 'none'; }
+        let elMie = document.getElementById('badge-mie'); if (elMie) { elMie.innerText = actualBadgeMieP; elMie.style.display = actualBadgeMieP > 0 ? 'flex' : 'none'; }
+        let bannerMie = document.getElementById('banner-notifiche-mie'); let textMie = "";
+        if(counts.permessi.mieInAttesa > 0) textMie += `• Ci sono <b>${counts.permessi.mieInAttesa}</b> nuove richieste in <b style="color:var(--warning);">ATTESA</b>.<br>`; if(counts.permessi.mieVistate > 0) textMie += `• Hai <b>${counts.permessi.mieVistate}</b> pratiche aggiornate in <b style="color:#219ebc;">VISTATO</b>.<br>`; if(counts.permessi.mieApprovate > 0) textMie += `• Hai <b>${counts.permessi.mieApprovate}</b> pratiche aggiornate in <b style="color:var(--success);">APPROVATO</b>.<br>`; if(counts.permessi.mieEvase > 0) textMie += `• Hai <b>${counts.permessi.mieEvase}</b> pratiche <b style="color:var(--evadi);">EVASE</b> (In attesa di conferma Fruizione).<br>`; if(counts.permessi.mieRifiutate > 0) textMie += `• Hai <b>${counts.permessi.mieRifiutate}</b> pratiche che sono state <b style="color:var(--danger);">RIFIUTATE</b>.<br>`;
+        if (textMie !== "" && bannerMie) { bannerMie.innerHTML = `<strong>🔔 Notifiche Recenti:</strong><br><br>${textMie}`; bannerMie.style.display = 'block'; } else if(bannerMie) bannerMie.style.display = 'none';
+        let bannerGestione = document.getElementById('banner-notifiche-gestione'); let textGestione = "";
+        if ((liv === 2 || liv === 5) && counts.permessi.daVistare > 0) textGestione += `🔴 Ci sono <b>${counts.permessi.daVistare}</b> pratiche IN ATTESA pronte da vistare.<br>`; if ((liv === 3 || liv === 5) && counts.permessi.daApprovare > 0) textGestione += `🔴 Ci sono <b>${counts.permessi.daApprovare}</b> pratiche VISTATE pronte per l'approvazione.<br>`; if (liv >= 4 && counts.permessi.daEvadere > 0) textGestione += `🔴 Ci sono <b>${counts.permessi.daEvadere}</b> pratiche APPROVATE pronte per l'evasione definitiva.<br>`;
+        if (textGestione !== "" && bannerGestione) { bannerGestione.innerHTML = `<strong>🔔 ATTENZIONE OPERATORE:</strong><br><br>${textGestione}`; bannerGestione.style.display = 'block'; } else if(bannerGestione) bannerGestione.style.display = 'none';
+        let currentHashP = counts.permessi.hashGestione + "_" + counts.permessi.hashMie;
+        if (!isFirstLoad && currentHashP !== hashMemoriaPermessi && currentHashP !== "_") { showToast("🔔 <b>Aggiornamento di Stato!</b><br>Dati Permessi Sincronizzati."); if (document.getElementById('sezione-mie-richieste').style.display === 'block') caricaMieRichieste(); if (document.getElementById('sezione-gestione').style.display === 'block') caricaPratiche(); }
+        hashMemoriaPermessi = currentHashP;
+    } else if (modalitaAttuale === 'VISITE') {
+        let elGestioneV = document.getElementById('badge-gestione-visite'); if(elGestioneV) { elGestioneV.innerText = actualBadgeGestioneV; elGestioneV.style.display = actualBadgeGestioneV > 0 ? 'flex' : 'none'; }
+        let elMieV = document.getElementById('badge-mie-visite'); if(elMieV) { elMieV.innerText = actualBadgeMieV; elMieV.style.display = actualBadgeMieV > 0 ? 'flex' : 'none'; }
+        let bannerMieV = document.getElementById('banner-notifiche-mie-visite'); let textMieV = "";
+        if (counts.visite.mieInAttesa > 0) textMieV += `• Sei incluso in <b>${counts.visite.mieInAttesa}</b> visite in <b style="color:var(--warning);">ATTESA</b>.<br>`; if (counts.visite.mieApprovate > 0) textMieV += `• Hai <b>${counts.visite.mieApprovate}</b> visite <b style="color:var(--success);">APPROVATE</b>.<br>`; if (counts.visite.mieEvase > 0) textMieV += `• Hai <b>${counts.visite.mieEvase}</b> visite <b style="color:var(--evadi);">EVASE</b>.<br>`; if (counts.visite.mieRifiutate > 0) textMieV += `• Hai <b>${counts.visite.mieRifiutate}</b> visite <b style="color:var(--danger);">RIFIUTATE</b>.<br>`;
+        if (textMieV !== "" && bannerMieV) { bannerMieV.innerHTML = `<strong>🔔 Notifiche Visite:</strong><br><br>${textMieV}`; bannerMieV.style.display = 'block'; } else if(bannerMieV) bannerMieV.style.display = 'none';
+        let bannerGestioneV = document.getElementById('banner-gestione-visite'); let msgBanner = "";
+        if (actualBadgeGestioneV > 0 && bannerGestioneV) { if(liv===3||liv===5) msgBanner += `🔴 Ci sono visite IN ATTESA di approvazione.<br>`; if(liv>=4) msgBanner += `🔴 Ci sono visite APPROVATE in attesa di comunicazione / evasione.`; bannerGestioneV.innerHTML = `<strong>🔔 ATTENZIONE OPERATORE:</strong><br><br>${msgBanner}`; bannerGestioneV.style.display = 'block'; } else if (bannerGestioneV) bannerGestioneV.style.display = 'none';
+        let currentHashV = counts.visite.hashGestione + "_" + counts.visite.hashMie;
+        if (!isFirstLoad && currentHashV !== hashMemoriaVisite && currentHashV !== "_") { showToast("🔔 <b>Aggiornamento di Stato!</b><br>Dati Visite Sincronizzati."); if (document.getElementById('sezione-mie-visite').style.display === 'block') caricaMieVisite(); if (document.getElementById('sezione-gestione-visite').style.display === 'block') caricaGestioneVisite(); }
+        hashMemoriaVisite = currentHashV;
+    } else if (modalitaAttuale === 'RIMBORSI') {
+        let elGestioneR = document.getElementById('badge-gestione-rimborsi'); if(elGestioneR) { elGestioneR.innerText = actualBadgeGestioneR; elGestioneR.style.display = actualBadgeGestioneR > 0 ? 'flex' : 'none'; }
+        let elMieR = document.getElementById('badge-mie-rimborsi'); if(elMieR) { elMieR.innerText = actualBadgeMieR; elMieR.style.display = actualBadgeMieR > 0 ? 'flex' : 'none'; }
+        let bannerMieR = document.getElementById('banner-notifiche-mie-rimborsi'); let textMieR = "";
+        if (counts.rimborsi.mieDaCorreggere > 0) textMieR += `• Hai <b>${counts.rimborsi.mieDaCorreggere}</b> richieste di rimborso da <b style="color:#e0a800;">CORREGGERE</b>.<br>`; if (counts.rimborsi.miePagate > 0) textMieR += `• Hai <b>${counts.rimborsi.miePagate}</b> rimborsi <b style="color:var(--pagato);">PAGATI</b>.<br>`; if (counts.rimborsi.mieRifiutate > 0) textMieR += `• Hai <b>${counts.rimborsi.mieRifiutate}</b> rimborsi <b style="color:var(--danger);">RIFIUTATE</b>.<br>`;
+        if (textMieR !== "" && bannerMieR) { bannerMieR.innerHTML = `<strong>🔔 Notifiche Rimborsi:</strong><br><br>${textMieR}`; bannerMieR.style.display = 'block'; } else if(bannerMieR) bannerMieR.style.display = 'none';
+        let bannerGestioneR = document.getElementById('banner-gestione-rimborsi'); let msgBannerR = "";
+        if (counts.rimborsi.daApprovare > 0) msgBannerR += `🔴 Ci sono <b>${counts.rimborsi.daApprovare}</b> rimborsi IN ATTESA da approvare.<br>`; if (counts.rimborsi.daPagare > 0) msgBannerR += `🔴 Ci sono <b>${counts.rimborsi.daPagare}</b> rimborsi APPROVATI pronti per il pagamento.`;
+        if (msgBannerR !== "" && bannerGestioneR) { bannerGestioneR.innerHTML = `<strong>🔔 ATTENZIONE OPERATORE:</strong><br><br>${msgBannerR}`; bannerGestioneR.style.display = 'block'; } else if(bannerGestioneR) bannerGestioneR.style.display = 'none';
+        let currentHashR = counts.rimborsi.hashGestione + "_" + counts.rimborsi.hashMie;
+        if (!isFirstLoad && currentHashR !== hashMemoriaRimborsi && currentHashR !== "_") { showToast("🔔 <b>Aggiornamento di Stato!</b><br>Dati Rimborsi Sincronizzati."); if (document.getElementById('sezione-mie-richieste-rimborsi').style.display === 'block') caricaMieRichiesteRimborsi(); if (document.getElementById('sezione-gestione-rimborsi').style.display === 'block') caricaGestioneRimborsi(); }
+        hashMemoriaRimborsi = currentHashR;
+    }
+}
+
+function azzeraNotificaPermessiLocale(tipo) { if (window.lastCountsObj && window.lastCountsObj.permessi) { if (tipo === 'MIE') { localStorage.setItem('permessi_hash_mie_' + utenteCorrente.cip, window.lastCountsObj.permessi.hashMie); let el = document.getElementById('badge-mie'); if(el) el.style.display = 'none'; let b = document.getElementById('banner-notifiche-mie'); if(b) b.style.display = 'none'; } else if (tipo === 'GESTIONE') { localStorage.setItem('permessi_hash_gestione_' + utenteCorrente.cip, window.lastCountsObj.permessi.hashGestione); let el = document.getElementById('badge-gestione'); if(el) el.style.display = 'none'; let b = document.getElementById('banner-notifiche-gestione'); if(b) b.style.display = 'none'; } let bm = (window.lastCountsObj.permessi.hashMie !== localStorage.getItem('permessi_hash_mie_' + utenteCorrente.cip)) ? 1 : 0; let bg = (window.lastCountsObj.permessi.hashGestione !== localStorage.getItem('permessi_hash_gestione_' + utenteCorrente.cip)) ? 1 : 0; let elDash = document.getElementById('badge-dash-permessi'); if (elDash) { elDash.style.display = (bm + bg > 0) ? 'flex' : 'none'; } } }
+function azzeraNotificaVisitaLocale(tipo) { if (window.lastCountsObj && window.lastCountsObj.visite) { if (tipo === 'MIE') { localStorage.setItem('visite_hash_mie_' + utenteCorrente.cip, window.lastCountsObj.visite.hashMie); let el = document.getElementById('badge-mie-visite'); if(el) el.style.display = 'none'; let b = document.getElementById('banner-notifiche-mie-visite'); if(b) b.style.display = 'none'; } else if (tipo === 'GESTIONE') { localStorage.setItem('visite_hash_gestione_' + utenteCorrente.cip, window.lastCountsObj.visite.hashGestione); let el = document.getElementById('badge-gestione-visite'); if(el) el.style.display = 'none'; let b = document.getElementById('banner-gestione-visite'); if(b) b.style.display = 'none'; } let bm = (window.lastCountsObj.visite.hashMie !== localStorage.getItem('visite_hash_mie_' + utenteCorrente.cip)) ? 1 : 0; let bg = (window.lastCountsObj.visite.hashGestione !== localStorage.getItem('visite_hash_gestione_' + utenteCorrente.cip)) ? 1 : 0; let elDash = document.getElementById('badge-dash-visite'); if (elDash) { elDash.innerText = bm + bg; elDash.style.display = (bm + bg > 0) ? 'flex' : 'none'; } } }
+function azzeraNotificaRimborsiLocale(tipo) { if (window.lastCountsObj && window.lastCountsObj.rimborsi) { if (tipo === 'MIE') { localStorage.setItem('rimb_hash_mie_' + utenteCorrente.cip, window.lastCountsObj.rimborsi.hashMie); let el = document.getElementById('badge-mie-rimborsi'); if(el) el.style.display = 'none'; let b = document.getElementById('banner-notifiche-mie-rimborsi'); if(b) b.style.display = 'none'; } else if (tipo === 'GESTIONE') { localStorage.setItem('rimb_hash_gestione_' + utenteCorrente.cip, window.lastCountsObj.rimborsi.hashGestione); let el = document.getElementById('badge-gestione-rimborsi'); if(el) el.style.display = 'none'; let b = document.getElementById('banner-gestione-rimborsi'); if(b) b.style.display = 'none'; } let bm = (window.lastCountsObj.rimborsi.hashMie !== localStorage.getItem('rimb_hash_mie_' + utenteCorrente.cip)) ? 1 : 0; let bg = (window.lastCountsObj.rimborsi.hashGestione !== localStorage.getItem('rimb_hash_gestione_' + utenteCorrente.cip)) ? 1 : 0; let elDash = document.getElementById('badge-dash-rimborsi'); if (elDash) { elDash.innerText = bm + bg; elDash.style.display = (bm + bg > 0) ? 'flex' : 'none'; } } }
+</script>

@@ -1,0 +1,335 @@
+<script>
+  // ================= VARIABILI GLOBALI =================
+  let utenteCorrente = null; 
+  let utentiDelegabili = []; 
+  let utentiVisita = []; 
+  let storicoRimborsiCache = []; 
+  let praticheInMemoria = []; 
+  let praticheRaggruppate = {}; 
+  let datiStatisticheRaw = null; 
+  let bozzaPeriodi = []; 
+  let modalitaAttuale = 'DASHBOARD'; 
+  let hashMemoriaPermessi = ""; let hashMemoriaVisite = ""; let hashMemoriaRimborsi = ""; 
+  let datiContabilitaCache = null; let segreteriaContabilita = ""; let isContabEditMode = false;
+  let partecipantiVisitaCorrente = []; let bozzaVisite = []; let utentiGestioneCache = [];
+  
+  const GERARCHIA = { "UTENTE": 1, "SEGRGEN": 2, "APPROVATORE": 3, "GESTORE": 4, "AMMINISTRATORE": 5 };
+
+  // ================= UTILITY =================
+  function formattaDataIT(dataStr) { if(!dataStr) return ""; const d = String(dataStr); if(d.includes('/')) return d; const p = d.split('T')[0].split('-'); return (p.length === 3) ? `${p[2]}/${p[1]}/${p[0]}` : d; }
+  function parseDateIT(dateStr) { if(!dateStr) return 0; let parts = dateStr.split('/'); if(parts.length === 3) return new Date(parts[2], parts[1] - 1, parts[0]).getTime(); return 0; }
+  function formattaVisualizzazionePeriodo(inizio, fine) { const start = formattaDataIT(inizio); const end = formattaDataIT(fine); return (start === end) ? `Il ${start}` : `Dal ${start} al ${end}`; }
+  function calcolaGiorni(d1, d2) { const start = new Date(d1); const end = new Date(d2); return Math.ceil(Math.abs(end - start) / (1000 * 60 * 60 * 24)) + 1; }
+  
+  function getColoreStato(stato) { 
+    switch(stato) { 
+      case "IN ATTESA": return "var(--warning)"; 
+      case "VISTATO": return "var(--vista)"; 
+      case "APPROVATO": return "var(--success)"; 
+      case "EVASA": case "EVASO": return "var(--evadi)"; 
+      case "PAGATO": return "var(--pagato)"; 
+      case "IN ATTESA ALLEGATO": return "#e0a800"; 
+      case "DA CORREGGERE": return "#e0a800"; 
+      case "FRUITO": return "var(--fruito)"; 
+      case "RIFIUTATO": case "RIFIUTATA": return "var(--danger)"; 
+      default: return "black"; 
+    } 
+  }
+  
+  function showToast(msg) { 
+    let container = document.getElementById('toast-container'); 
+    let toast = document.createElement('div'); 
+    toast.className = 'toast show'; 
+    toast.innerHTML = msg; 
+    container.appendChild(toast); 
+    setTimeout(() => { toast.classList.remove('show'); setTimeout(()=>toast.remove(), 500); }, 6000); 
+  }
+
+  function evidenziaBottone(btnId) {
+    document.querySelectorAll('#menu-buttons .btn').forEach(b => b.classList.remove('btn-attivo'));
+    let btn = document.getElementById(btnId);
+    if(btn) btn.classList.add('btn-attivo');
+  }
+
+  // ================= LOGIN E DASHBOARD =================
+  function aggiornaHeaderInfo() {
+      let hd = document.getElementById('user-header-info');
+      if(hd && utenteCorrente) {
+          hd.innerHTML = `
+            <span style="border: 1px solid var(--gray-blue); color: var(--gray-blue); padding: 2px 5px; border-radius: 3px; font-size: 12px; font-weight: normal; margin-right: 8px;">${utenteCorrente.ruolo}</span>
+            <span style="font-weight: bold; margin-right: 15px;">${utenteCorrente.cognome} ${utenteCorrente.nome}</span>
+            <span style="font-weight: normal; margin-right: 15px;">${utenteCorrente.carica}</span>
+            <span style="font-weight: normal; color: red; margin-left:15px;">${utenteCorrente.provincia}</span>
+          `;
+      }
+  }
+
+  function eseguiLogin() {
+    const pwd = document.getElementById('password').value; 
+    if (!pwd) return alert("Inserisci la password.");
+    
+    const errBox = document.getElementById('login-error'); 
+    errBox.style.display = 'block'; errBox.style.color = 'black'; errBox.innerText = "Accesso in corso...";
+    
+    google.script.run
+      .withSuccessHandler(res => {
+          try {
+              if (res && res.error) { 
+                  errBox.style.color = 'red'; errBox.innerText = res.error; 
+              } else if (res) { 
+                  utenteCorrente = res; 
+                  document.getElementById('login-section').style.display = 'none'; 
+                  document.getElementById('main-ui').style.display = 'block';
+                  aggiornaHeaderInfo(); 
+                  inizializzaDashboard(); 
+                  
+                  // Chiamate ai moduli di ricarica
+                  if(typeof caricaUtentiDelega === "function") caricaUtentiDelega(); 
+                  if(typeof caricaUtentiVisita === "function") caricaUtentiVisita(); 
+                  if(typeof caricaNotificheDashboard === "function") caricaNotificheDashboard(true); 
+              } else {
+                  errBox.style.color = 'red'; errBox.innerText = "Errore: Nessun dato ricevuto dal server.";
+              }
+          } catch(e) {
+              errBox.style.color = 'red'; errBox.innerText = "Errore Caricamento Interfaccia: " + e.message;
+          }
+      })
+      .withFailureHandler(err => {
+          errBox.style.color = 'red'; errBox.innerText = "Errore Server Google: " + err.message;
+      })
+      .effettuaLogin(pwd);
+  }
+
+  function tornaAlMenuPrincipale() { 
+    inizializzaDashboard(); 
+    if(typeof caricaNotificheDashboard === "function") caricaNotificheDashboard(true); 
+  }
+
+  function inizializzaDashboard() {
+    modalitaAttuale = 'DASHBOARD';
+    document.getElementById('dashboard-section').style.display = 'block';
+    
+    // Nascondi tutti i moduli
+    let moduli = ['container-profilo-globale', 'container-permessi', 'container-visite', 'container-gestione', 'container-rimborsi', 'container-contabilita', 'container-materiali', 'container-rubrica'];
+    moduli.forEach(id => {
+      let el = document.getElementById(id);
+      if(el) el.style.display = 'none';
+    });
+
+    aggiornaHeaderInfo();
+    document.getElementById('dash-nome').innerText = utenteCorrente.nome + " " + utenteCorrente.cognome;
+    
+    let row1Html = ""; let row2Html = ""; 
+    let liv = GERARCHIA[utenteCorrente.ruoloBase] || 1; 
+    let ruoloStr = String(utenteCorrente.ruolo || "").toUpperCase();
+    
+    row2Html += `<div class="dash-card" onclick="apriModulo('UTENTE')">PROFILO UTENTE<span id="badge-dash-utente" class="badge-dash" style="display:none;">0</span></div>`;
+    if (liv >= 2) row2Html += `<div class="dash-card" onclick="apriModulo('GESTIONE')">GESTIONE<br><span style="font-size: 13px; font-weight: normal; text-transform: uppercase;">SEGRETARI</span></div>`;
+    row2Html += `<div class="dash-card" onclick="apriModulo('RUBRICA')">RUBRICA<span id="badge-dash-rubrica" class="badge-dash" style="display:none;">0</span></div>`;
+
+    if (ruoloStr.includes('TESORIERE') || ruoloStr.includes('TESORIERE2')) row2Html += `<div class="dash-card" onclick="apriModulo('CONTABILITA')">CONTABILITÀ</div>`;
+
+    let vociMenu = utenteCorrente.menu || ["PERMESSI SINDACALI"];
+    vociMenu.forEach(voce => {
+        if (voce.includes('PERMESSI')) row1Html += `<div class="dash-card" onclick="apriModulo('PERMESSI')">${voce}<span id="badge-dash-permessi" class="badge-dash" style="display:none;">0</span></div>`;
+        else if (voce.includes('VISITE')) row1Html += `<div class="dash-card" onclick="apriModulo('VISITE')">${voce}<span id="badge-dash-visite" class="badge-dash" style="display:none;">0</span></div>`;
+        else if (voce.includes('RIMBORS')) row1Html += `<div class="dash-card" onclick="apriModulo('RIMBORSI')">${voce}<span id="badge-dash-rimborsi" class="badge-dash" style="display:none;">0</span></div>`;
+        else if (voce === 'UTENTE' || voce.includes('UTENTE') || voce.includes('GESTIONE') || voce.includes('RUBRICA')) {}
+        else row1Html += `<div class="dash-card" onclick="alert('In sviluppo.')" style="background-color: #e9ecef; color: #666;">${voce}<br><small>(In sviluppo)</small></div>`;
+    });
+    
+    document.getElementById('dashboard-cards').innerHTML = row1Html;
+
+    if (ruoloStr.includes('MAT') || ruoloStr.includes('MAT2') || ruoloStr.includes('AMMINISTRATORE')) {
+        row2Html += `<div class="dash-card" onclick="apriModulo('MATERIALI')">MATERIALI</div>`;
+    }
+    
+    document.getElementById('dashboard-cards-row2').innerHTML = row2Html;
+    document.getElementById('menu-buttons').innerHTML = `<button class="btn" style="background-color: #ffb347; color: white;" onclick="location.reload()">ESCI</button>`;
+    
+    // Attiva polling notifiche (richiama funzione che sarà in JS_Notifiche)
+    if (!window.pollingDashInterval && typeof caricaNotificheDashboard === "function") {
+      window.pollingDashInterval = setInterval(() => caricaNotificheDashboard(false), 30000); 
+    }
+  }
+
+  function apriModulo(nomeModulo) { 
+    document.getElementById('dashboard-section').style.display = 'none'; 
+    google.script.run.withSuccessHandler(res => { 
+      if(res) { utenteCorrente = res; aggiornaHeaderInfo(); } 
+      eseguiApriModulo(nomeModulo); 
+    }).refreshUtente(utenteCorrente.cip); 
+  }
+
+  function eseguiApriModulo(nomeModulo) {
+    modalitaAttuale = nomeModulo; 
+    document.getElementById('dashboard-section').style.display = 'none'; 
+    let moduli = ['container-profilo-globale', 'container-permessi', 'container-visite', 'container-gestione', 'container-rimborsi', 'container-contabilita', 'container-materiali', 'container-rubrica'];
+    moduli.forEach(id => {
+      let el = document.getElementById(id);
+      if(el) el.style.display = 'none';
+    });
+
+    let liv = GERARCHIA[utenteCorrente.ruoloBase] || 1; 
+    let menuHtml = '';
+
+    if (nomeModulo === 'UTENTE') {
+        document.getElementById('container-profilo-globale').style.display = 'block'; 
+        document.getElementById('content-profilo-globale').innerHTML = buildProfiloHTML(true);
+        if (liv === 5) { 
+          document.getElementById('admin-modifiche-profilo').style.display = 'block'; 
+          if(typeof caricaModificheProfilo === "function") caricaModificheProfilo(); 
+        } else { document.getElementById('admin-modifiche-profilo').style.display = 'none'; }
+    } else if (nomeModulo === 'GESTIONE') {
+        document.getElementById('container-gestione').style.display = 'block'; 
+        if(typeof caricaGestioneSegretari === "function") caricaGestioneSegretari();
+    } else if (nomeModulo === 'PERMESSI') {
+        document.getElementById('container-permessi').style.display = 'block'; 
+        document.getElementById('content-profilo-permessi').innerHTML = buildProfiloHTML(false);
+        menuHtml += `<button class="btn" id="nav-p-prof" onclick="evidenziaBottone('nav-p-prof'); mostraSezionePermessi('profilo-permessi')">PROFILO</button><button class="btn" id="nav-p-mie" onclick="evidenziaBottone('nav-p-mie'); mostraSezionePermessi('mie-richieste'); caricaMieRichieste();">MIE RICHIESTE <span id="badge-mie" class="badge" style="display:none;"></span></button><button class="btn" id="nav-p-nuovo" onclick="evidenziaBottone('nav-p-nuovo'); mostraSezionePermessi('permessi')">CHIEDI PERMESSO</button>`;
+        if (liv >= 2) menuHtml += `<button class="btn" id="nav-p-gest" onclick="evidenziaBottone('nav-p-gest'); mostraSezionePermessi('gestione'); caricaPratiche();">${(liv===5)?"GESTIONE PRATICHE (ADMIN)":"GESTIONE PRATICHE"} <span id="badge-gestione" class="badge" style="display:none;"></span></button>`;
+        menuHtml += `<button class="btn" id="nav-p-stat" onclick="evidenziaBottone('nav-p-stat'); mostraSezionePermessi('statistiche'); caricaDatiStatistiche();">STATISTICHE</button>`;
+    } else if (nomeModulo === 'VISITE') {
+        document.getElementById('container-visite').style.display = 'block'; 
+        document.getElementById('content-profilo-visite').innerHTML = buildProfiloHTML(false); 
+        if(typeof popolaOrariVisita === "function") popolaOrariVisita();
+        menuHtml += `<button class="btn" id="nav-v-prof" onclick="evidenziaBottone('nav-v-prof'); mostraSezioneVisite('profilo-visite')">PROFILO</button><button class="btn" id="nav-v-mie" onclick="evidenziaBottone('nav-v-mie'); onclickMieVisite()">MIE VISITE <span id="badge-mie-visite" class="badge" style="display:none;"></span></button><button class="btn" id="nav-v-nuovo" onclick="evidenziaBottone('nav-v-nuovo'); mostraSezioneVisite('componi-visita'); caricaMenuPartecipantiVisita();">INSERISCI VISITA</button>`;
+        if (liv >= 2) menuHtml += `<button class="btn" id="nav-v-gest" onclick="evidenziaBottone('nav-v-gest'); onclickGestioneVisite()">GESTIONE VISITE <span id="badge-gestione-visite" class="badge" style="display:none;"></span></button>`;
+    } else if (nomeModulo === 'RIMBORSI') {
+        document.getElementById('container-rimborsi').style.display = 'block'; 
+        document.getElementById('content-profilo-rimborsi').innerHTML = buildProfiloHTML(false); 
+        if(typeof popolaTendineRimborsi === "function") popolaTendineRimborsi();
+        menuHtml += `<button class="btn" id="nav-r-prof" onclick="evidenziaBottone('nav-r-prof'); mostraSezioneRimborsi('profilo-rimborsi')">PROFILO</button><button class="btn" id="nav-r-mie" onclick="evidenziaBottone('nav-r-mie'); mostraSezioneRimborsi('mie-richieste-rimborsi'); caricaMieRichiesteRimborsi();">MIE RICHIESTE <span id="badge-mie-rimborsi" class="badge" style="display:none;"></span></button><button class="btn" id="nav-r-nuovo" onclick="evidenziaBottone('nav-r-nuovo'); mostraSezioneRimborsi('componi-rimborso');">NUOVO RIMBORSO</button>`;
+        if (liv >= 2 || utenteCorrente.ruolo.includes('TESORIERE')) { menuHtml += `<button class="btn" id="nav-r-gest" onclick="evidenziaBottone('nav-r-gest'); mostraSezioneRimborsi('gestione-rimborsi'); caricaGestioneRimborsi();">GESTIONE RIMBORSI <span id="badge-gestione-rimborsi" class="badge" style="display:none;"></span></button>`; }
+    } else if (nomeModulo === 'CONTABILITA') {
+        document.getElementById('container-contabilita').style.display = 'block'; 
+        if(typeof caricaDatiContabilita === "function") caricaDatiContabilita();
+    } else if (nomeModulo === 'MATERIALI') {
+        document.getElementById('container-materiali').style.display = 'block';
+        let segrMat = "Tutte le Segreterie (Admin)";
+        let ruoloStrMat = String(utenteCorrente.ruolo || "").toUpperCase();
+        if (!ruoloStrMat.includes('AMMINISTRATORE')) {
+            if (ruoloStrMat.includes('MAT') && !ruoloStrMat.includes('MAT2')) { segrMat = "Segreteria Regionale EMILIA ROMAGNA"; } 
+            else if (ruoloStrMat.includes('MAT2')) { segrMat = "Segreteria Provinciale " + utenteCorrente.provincia; }
+        }
+        let elCompetenza = document.getElementById('mat-segreteria-competenza');
+        if (elCompetenza) elCompetenza.innerText = segrMat;
+        menuHtml += `<button class="btn" id="nav-m-elenco" onclick="evidenziaBottone('nav-m-elenco'); mostraSezioneMateriali('elenco'); caricaDatiMateriali();">INVENTARIO E GESTIONE</button>`;
+    } else if (nomeModulo === 'RUBRICA') {
+        document.getElementById('container-rubrica').style.display = 'block';
+        if(typeof caricaRubrica === "function") caricaRubrica();
+    }
+    
+    menuHtml += `<button class="btn" style="margin-left:20px; background-color: #6c757d; color: white;" onclick="tornaAlMenuPrincipale()">MENU PRINCIPALE</button><button class="btn" style="margin-left:5px; background-color: #ffb347; color: white;" onclick="location.reload()">ESCI</button>`;
+    document.getElementById('menu-buttons').innerHTML = menuHtml; 
+    ricaricaFotoProfiloUI(); 
+    if(typeof caricaNotificheDashboard === "function") caricaNotificheDashboard(true);
+
+    if (nomeModulo === 'PERMESSI') {
+        if(typeof mostraSezionePermessi === "function") mostraSezionePermessi('mie-richieste'); 
+        if(typeof caricaMieRichieste === "function") caricaMieRichieste(); 
+        evidenziaBottone('nav-p-mie');
+    } else if (nomeModulo === 'VISITE') {
+        if(typeof onclickMieVisite === "function") onclickMieVisite(); 
+        evidenziaBottone('nav-v-mie');
+    } else if (nomeModulo === 'RIMBORSI') {
+        if(typeof mostraSezioneRimborsi === "function") mostraSezioneRimborsi('mie-richieste-rimborsi'); 
+        if(typeof caricaMieRichiesteRimborsi === "function") caricaMieRichiesteRimborsi(); 
+        evidenziaBottone('nav-r-mie');
+    } else if (nomeModulo === 'MATERIALI') {
+        if(typeof mostraSezioneMateriali === "function") mostraSezioneMateriali('elenco'); 
+        if(typeof caricaDatiMateriali === "function") caricaDatiMateriali(); 
+        evidenziaBottone('nav-m-elenco');
+    }
+  }
+
+  // ================= PROFILO HTML =================
+  function buildProfiloHTML(withEdit) {
+    let html = `<div id="${withEdit ? 'view-profilo-globale' : 'view-profilo-locale'}">
+          <div class="profilo-img-container" ${withEdit ? `onclick="document.getElementById('global-file-foto').click()"` : ''}>
+              <span class="profilo-img-placeholder" ${!withEdit ? `style="display:none;"` : ''}>Carica Foto</span>
+              <img class="profilo-img">
+          </div>
+          <div style="text-align: left; line-height: 2; font-size: 14px; background: #f8f9fa; padding: 20px; border: 1px solid #ddd; border-left: 5px solid var(--secondary);">
+            <div><strong>COGNOME NOME:</strong> ${utenteCorrente.cognome} ${utenteCorrente.nome}</div><div><strong>GRADO:</strong> ${utenteCorrente.grado}</div>
+            <div><strong>CARICA E PROVINCIA:</strong> ${utenteCorrente.carica} ${utenteCorrente.provincia}</div><div><strong>DATA ELEZIONE:</strong> ${utenteCorrente.dataElezione}</div>
+            <div><strong>CONSIGLIERE:</strong> ${utenteCorrente.consigliere} &nbsp;&nbsp;&nbsp;<strong>DATA NOMINA:</strong> ${utenteCorrente.dataNomina}</div>
+            <div><strong>SEGRETERIA:</strong> ${utenteCorrente.segreteria}</div><div><strong>CIP:</strong> ${utenteCorrente.cip}</div><div><strong>REPARTO:</strong> ${utenteCorrente.reparto}</div>
+            <div><strong>PROVINCIA SERVIZIO:</strong> ${utenteCorrente.provServizio}</div><div><strong>ORGANIZZAZIONE:</strong> ${utenteCorrente.organizzazione}</div>
+            <div><strong>EMAIL:</strong> ${utenteCorrente.email} &nbsp;&nbsp;&nbsp;<strong>TELEFONO:</strong> ${utenteCorrente.telefono}</div><div><strong>RUOLO:</strong> ${utenteCorrente.ruolo}</div>
+            <div style="margin-top: 15px; padding-top: 15px; border-top: 1px dashed #ccc;">
+               <div style="color:var(--danger); font-weight:bold; margin-bottom:10px;">DATI FINANZIARI / RIMBORSI</div>
+               <div><strong>CODICE FISCALE:</strong> ${utenteCorrente.cf || '-'}</div>
+               <div><strong>IBAN REGISTRATI:</strong> ${(utenteCorrente.ibans||[]).map(i=>i.alias+': '+i.iban).join(', ') || '-'}</div>
+               <div><strong>VETTURE REGISTRATE:</strong> ${(utenteCorrente.vetture||[]).map(v=>v.modello+' ('+v.targa+')').join(', ') || '-'}</div>
+             </div></div>`;
+
+    if(withEdit) {
+        html += `<button id="btn-apri-modifica" class="btn-outline-custom" onclick="if(typeof mostraEditProfilo === 'function') mostraEditProfilo()">RICHIEDI MODIFICA</button></div>
+        <div id="edit-profilo" style="display: none; background: #f8f9fa; padding: 20px; border: 1px solid #ddd; border-left: 5px solid var(--warning); margin-top: 20px;">
+            <h4 style="margin-top:0;">Richiesta Modifica Dati Personali e Finanziari</h4>
+            <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom: 10px;">
+                <div style="flex:1; min-width:200px;"><label style="font-size:12px; font-weight:bold;">Grado:</label><input type="text" id="edit-grado" value="${utenteCorrente.grado}"></div>
+                <div style="flex:1; min-width:200px;"><label style="font-size:12px; font-weight:bold;">Reparto / Comando:</label><input type="text" id="edit-reparto" value="${utenteCorrente.reparto}"></div>
+            </div>
+            <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom: 10px;">
+                <div style="flex:1; min-width:200px;"><label style="font-size:12px; font-weight:bold;">Provincia di Servizio:</label><input type="text" id="edit-provservizio" value="${utenteCorrente.provServizio}"></div>
+                <div style="flex:1; min-width:200px;"><label style="font-size:12px; font-weight:bold;">Email:</label><input type="text" id="edit-email" value="${utenteCorrente.email}"></div>
+                <div style="flex:1; min-width:200px;"><label style="font-size:12px; font-weight:bold;">Telefono:</label><input type="text" id="edit-telefono" value="${utenteCorrente.telefono}"></div>
+            </div>
+            <h4 style="margin-top:25px; margin-bottom:5px; border-bottom:1px solid #ccc; padding-bottom:5px;">Dati per Rimborsi</h4>
+            <label style="font-size:12px; font-weight:bold;">Codice Fiscale:</label><input type="text" id="edit-cf" value="${utenteCorrente.cf || ''}" placeholder="Inserisci Codice Fiscale">
+            <p style="font-size:12px; font-weight:bold; margin: 15px 0 5px 0;">IBAN (Max 2)</p>
+            <div style="display:flex; gap:10px;"><input type="text" id="edit-iban1-alias" placeholder="Alias (es. Principale)" value="${(utenteCorrente.ibans && utenteCorrente.ibans[0]) ? utenteCorrente.ibans[0].alias : ''}" style="flex:1; margin:0;"><input type="text" id="edit-iban1-val" placeholder="IT..." value="${(utenteCorrente.ibans && utenteCorrente.ibans[0]) ? utenteCorrente.ibans[0].iban : ''}" style="flex:2; margin:0;"></div>
+            <div style="display:flex; gap:10px; margin-top:5px;"><input type="text" id="edit-iban2-alias" placeholder="Alias (es. Secondario)" value="${(utenteCorrente.ibans && utenteCorrente.ibans[1]) ? utenteCorrente.ibans[1].alias : ''}" style="flex:1; margin:0;"><input type="text" id="edit-iban2-val" placeholder="IT..." value="${(utenteCorrente.ibans && utenteCorrente.ibans[1]) ? utenteCorrente.ibans[1].iban : ''}" style="flex:2; margin:0;"></div>
+            <p style="font-size:12px; font-weight:bold; margin: 15px 0 5px 0;">Vetture (Max 3)</p>
+            <div style="display:flex; gap:10px;"><input type="text" id="edit-vet1-mod" placeholder="Modello" value="${(utenteCorrente.vetture && utenteCorrente.vetture[0]) ? utenteCorrente.vetture[0].modello : ''}" style="flex:2; margin:0;"><input type="text" id="edit-vet1-tar" placeholder="Targa" value="${(utenteCorrente.vetture && utenteCorrente.vetture[0]) ? utenteCorrente.vetture[0].targa : ''}" style="flex:1; margin:0;"></div>
+            <div style="display:flex; gap:10px; margin-top:5px;"><input type="text" id="edit-vet2-mod" placeholder="Modello" value="${(utenteCorrente.vetture && utenteCorrente.vetture[1]) ? utenteCorrente.vetture[1].modello : ''}" style="flex:2; margin:0;"><input type="text" id="edit-vet2-tar" placeholder="Targa" value="${(utenteCorrente.vetture && utenteCorrente.vetture[1]) ? utenteCorrente.vetture[1].targa : ''}" style="flex:1; margin:0;"></div>
+            <div style="display:flex; gap:10px; margin-top:5px;"><input type="text" id="edit-vet3-mod" placeholder="Modello" value="${(utenteCorrente.vetture && utenteCorrente.vetture[2]) ? utenteCorrente.vetture[2].modello : ''}" style="flex:2; margin:0;"><input type="text" id="edit-vet3-tar" placeholder="Targa" value="${(utenteCorrente.vetture && utenteCorrente.vetture[2]) ? utenteCorrente.vetture[2].targa : ''}" style="flex:1; margin:0;"></div>
+            <div style="margin-top:25px;"><button class="btn-outline-custom" style="width:100%; margin:0;" onclick="if(typeof inviaRichiestaModificaProfilo === 'function') inviaRichiestaModificaProfilo()">INVIA RICHIESTA</button></div>
+            <p id="msg-modifica-profilo" style="font-weight: bold; margin-top: 15px;"></p>
+        </div>`;
+    } else { html += `</div>`; } return html;
+  }
+
+  function ricaricaFotoProfiloUI() { 
+      const savedPic = utenteCorrente.fotoUrl; 
+      if(savedPic && savedPic.trim() !== "") { 
+          document.querySelectorAll('.profilo-img').forEach(img => { img.src = savedPic; img.style.display = 'block'; }); 
+          document.querySelectorAll('.profilo-img-placeholder').forEach(span => { span.style.display = 'none'; }); 
+      } else {
+          document.querySelectorAll('.profilo-img').forEach(img => { img.style.display = 'none'; });
+          document.querySelectorAll('.profilo-img-placeholder').forEach(span => { span.style.display = 'block'; span.innerText = "Carica Foto"; });
+      }
+  }
+
+  function salvaImmagineLocale(event) { 
+      const file = event.target.files[0]; 
+      if (!file) return;
+      if (file.size > 2 * 1024 * 1024) { alert("La foto supera il limite massimo di 2 MB. Scegli un'immagine più piccola."); return; }
+      
+      document.querySelectorAll('.profilo-img-placeholder').forEach(span => { span.style.display = 'block'; span.innerText = "Caricamento in corso..."; });
+      document.querySelectorAll('.profilo-img').forEach(img => { img.style.display = 'none'; });
+
+      const reader = new FileReader(); 
+      reader.onload = function(e) { 
+          const base64Data = e.target.result.split(',')[1];
+          const mimeType = file.type;
+          const estensione = file.name.split('.').pop();
+          const fileName = "foto_" + utenteCorrente.nome + " " + utenteCorrente.cognome + "." + estensione;
+          
+          google.script.run.withSuccessHandler(res => {
+              if (res && res.success) {
+                  utenteCorrente.fotoUrl = res.url;
+                  ricaricaFotoProfiloUI();
+                  showToast("Foto profilo aggiornata con successo su Drive!");
+                  if (modalitaAttuale === 'GESTIONE' && typeof caricaGestioneSegretari === 'function') caricaGestioneSegretari();
+              } else {
+                  alert("Errore durante il salvataggio della foto: " + (res ? res.error : "Errore sconosciuto"));
+                  ricaricaFotoProfiloUI(); 
+              }
+          }).salvaFotoProfiloDrive(utenteCorrente.cip, utenteCorrente.segreteria, base64Data, mimeType, fileName);
+      }; 
+      reader.readAsDataURL(file); 
+  }
+</script>

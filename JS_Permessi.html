@@ -1,0 +1,198 @@
+<script>
+// ==========================================
+// FUNZIONI GESTIONE PERMESSI E STATISTICHE
+// ==========================================
+
+function caricaUtentiDelega() { 
+    google.script.run.withSuccessHandler(utenti => { 
+        utentiDelegabili = utenti; let liv = GERARCHIA[utenteCorrente.ruoloBase] || 1; let isSegrGenER = (liv === 2 && utenteCorrente.provincia === 'EMILIA ROMAGNA'); let html = ""; 
+        if (utenti.length > 0 && liv > 1) { 
+            html = `<label style="font-size:12px; font-weight:bold;">Richiedi per conto di:</label><select id="select-delega" style="margin-top:5px;">`; 
+            if (isSegrGenER || liv >= 3) { 
+                let province = []; let hasER = false; utenti.forEach(u => { if (u.provincia === 'EMILIA ROMAGNA') hasER = true; else if (!province.includes(u.provincia)) province.push(u.provincia); }); 
+                if (hasER) province.unshift('EMILIA ROMAGNA'); 
+                province.forEach(prov => { 
+                    html += `<optgroup label="Provincia di ${prov}">`; 
+                    utenti.filter(u => u.provincia === prov).forEach(u => { let meTxt = (u.cip === utenteCorrente.cip) ? "ME STESSO" : `${u.cognome} ${u.nome} [${u.carica}]`; let sel = (u.cip === utenteCorrente.cip) ? "selected" : ""; html += `<option value="${u.cip}" ${sel}>${meTxt}</option>`; }); 
+                    html += `</optgroup>`; 
+                }); 
+            } else { 
+                utenti.forEach(u => { let meTxt = (u.cip === utenteCorrente.cip) ? "ME STESSO" : `${u.cognome} ${u.nome} [${u.carica}]`; let sel = (u.cip === utenteCorrente.cip) ? "selected" : ""; html += `<option value="${u.cip}" ${sel}>${meTxt}</option>`; }); 
+            } 
+            html += `</select>`; 
+        } else { html = `<input type="hidden" id="select-delega" value="${utenteCorrente.cip}">`; } 
+        if (document.getElementById('div-delega')) document.getElementById('div-delega').innerHTML = html; 
+    }).getUtentiPerDelega(utenteCorrente); 
+}
+
+function controllaDate() { const start = document.getElementById('data-giorno').value; if(!start) return; let limite = new Date(); limite.setDate(new Date().getDate() + 6); document.getElementById('urgente').checked = (new Date(start) < limite); }
+
+function aggiungiPeriodoAllaBozza() { const start = document.getElementById('data-giorno').value; const motivazione = document.getElementById('motivazione-giorno').value.trim(); if(!start) return alert("Seleziona una data."); bozzaPeriodi.push({ inizio: start, fine: start, urgente: document.getElementById('urgente').checked, superaLimite: document.getElementById('supera-limite').checked, motivazione: motivazione }); document.getElementById('data-giorno').value = ''; document.getElementById('motivazione-giorno').value = ''; document.getElementById('urgente').checked = false; document.getElementById('supera-limite').checked = false; renderBozza(); }
+
+function rimuoviPeriodoDaBozza(i) { bozzaPeriodi.splice(i, 1); renderBozza(); }
+
+function renderBozza() { 
+    const lista = document.getElementById('lista-periodi-bozza'); const btn = document.getElementById('btn-invia-richiesta'); lista.innerHTML = ""; 
+    if(bozzaPeriodi.length === 0) { lista.innerHTML = `<li style="background-color: transparent; border: none; color: #777;">Nessun giorno aggiunto.</li>`; btn.style.display = "none"; return; } 
+    let tot = 0; 
+    bozzaPeriodi.forEach((p, i) => { 
+        let n = p.urgente ? "<b style='color:red;'>[URG]</b> " : ""; n += p.superaLimite ? "<b style='color:orange;'>[LIM]</b>" : ""; const gg = calcolaGiorni(p.inizio, p.fine); tot += gg; let txt = formattaVisualizzazionePeriodo(p.inizio, p.fine); let motText = p.motivazione ? ` - <i>${p.motivazione}</i>` : ""; 
+        lista.innerHTML += `<li><span>${txt} (${gg} gg) ${n}${motText}</span><button class="btn btn-danger btn-small" onclick="rimuoviPeriodoDaBozza(${i})">X</button></li>`; 
+    }); 
+    btn.innerText = `INVIA RICHIESTA COMPLETA (${tot} giorni)`; btn.style.display = "block"; 
+}
+
+function inviaRichiestaMultipla() { 
+    const btn = document.getElementById('btn-invia-richiesta'); const msg = document.getElementById('form-msg'); btn.disabled = true; msg.innerText = "Invio in corso..."; msg.style.color = "black"; 
+    let cipSelezionato = document.getElementById('select-delega') ? document.getElementById('select-delega').value : utenteCorrente.cip; let utenteRichiesto = utentiDelegabili.find(u => u.cip === cipSelezionato) || utenteCorrente; 
+    let periodiPerServer = bozzaPeriodi.map(p => ({ inizio: p.inizio, fine: p.fine, urgente: p.urgente, supera: p.superaLimite, motivazione: p.motivazione })); 
+    const datiOriginali = { ruoloLoggato: utenteCorrente.ruoloBase, provinciaLoggato: utenteCorrente.provincia, cipInseritore: utenteCorrente.cip, cognomeInseritore: utenteCorrente.cognome, cip: utenteRichiesto.cip, nome: utenteRichiesto.nome, cognome: utenteRichiesto.cognome, grado: utenteRichiesto.grado, provincia: utenteRichiesto.provincia, periodi: periodiPerServer }; 
+    google.script.run.withSuccessHandler(res => { 
+        if (res && res.error) { msg.innerText = "Errore Server: " + res.error; msg.style.color = "red"; btn.disabled = false; } 
+        else { 
+            document.getElementById('sezione-inviati').style.display = 'block'; 
+            let hc = document.getElementById('tabella-inviati-container').innerHTML; if (hc.trim() === "") hc = `<table><tr><th>Richiedente</th><th>Periodi Inseriti</th><th>Stato</th></tr>`; else hc = hc.replace('</table>', ''); 
+            hc += `<tr><td>${utenteRichiesto.cognome} ${utenteRichiesto.nome}</td><td>${bozzaPeriodi.map(p => formattaVisualizzazionePeriodo(p.inizio, p.fine)).join("<br>")}</td><td style="color: darkorange; font-weight: bold;">INVIATO</td></tr></table>`; 
+            document.getElementById('tabella-inviati-container').innerHTML = hc; bozzaPeriodi = []; renderBozza(); caricaMieRichieste(); caricaNotificheDashboard(false); msg.innerText = "Richiesta inviata con successo!"; msg.style.color = "green"; btn.disabled = false; 
+        } 
+    }).withFailureHandler(err => { msg.innerText = "Errore: " + err.message; msg.style.color = "red"; btn.disabled = false; }).salvaRichiestaPermesso(datiOriginali); 
+}
+
+function eseguiConfermaGiornoFruito(btnElement, riga, dataGiornoISO) { btnElement.innerText = "Attendere..."; document.querySelectorAll('.btn-fruito').forEach(b => b.disabled = true); google.script.run.withSuccessHandler(res => { if (!res.success) alert("Errore: " + res.error); caricaMieRichieste(); caricaNotificheDashboard(false); }).confermaGiornoFruito(riga, dataGiornoISO, utenteCorrente.cognome); }
+function eseguiCancellaGiorno(btnElement, riga) { btnElement.innerText = "Eliminazione..."; btnElement.disabled = true; google.script.run.withSuccessHandler(res => { if(!res.success) alert("Errore: " + res.error); caricaPratiche(); caricaNotificheDashboard(false); if(document.getElementById('sezione-statistiche').style.display === 'block') caricaDatiStatistiche(); }).cancellaGiornoPratica(riga); }
+
+function generaHtmlGestione(listaPratiche, statiAmmessi, cipOrder, isTrattazione) { 
+    let perStato = {}; statiAmmessi.forEach(s => perStato[s] = {}); 
+    let gruppiDict = {}; let liv = GERARCHIA[utenteCorrente.ruoloBase]; 
+    listaPratiche.forEach(p => { 
+        let k = (isTrattazione && liv >= 4 && p.stato === 'APPROVATO') ? "ACCORPATO_" + p.cip : p.idGruppo + "_" + p.cip; 
+        if (!gruppiDict[k]) gruppiDict[k] = { info: p, items: [], stato: p.stato, cip: p.cip, richiedente: p.richiedente, minDate: Infinity }; 
+        gruppiDict[k].items.push(p); 
+        let dTime = parseDateIT(p.inizio); if (dTime < gruppiDict[k].minDate) gruppiDict[k].minDate = dTime; 
+    }); 
+    Object.values(gruppiDict).forEach(g => { let s = g.stato; let c = g.cip; if (perStato[s]) { if (!perStato[s][c]) perStato[s][c] = []; perStato[s][c].push(g); } }); 
+    let html = ""; 
+    statiAmmessi.forEach(s => { 
+        let cipMap = perStato[s]; let cips = Object.keys(cipMap); if (cips.length === 0) return; 
+        cips.sort((a, b) => (cipOrder[a] || 9999) - (cipOrder[b] || 9999)); 
+        let totP = 0; cips.forEach(c => { cipMap[c].sort((g1, g2) => g1.minDate - g2.minDate); totP += cipMap[c].length; }); 
+        let isOpen = (s === "IN ATTESA" || s === "VISTATO" || s === "APPROVATO") ? "open" : ""; 
+        html += `<details style="border:1px solid #ccc; margin-bottom:10px; padding:10px; background:white;" ${isOpen}><summary style="cursor: pointer; font-weight:bold; color:${getColoreStato(s)}; font-size:15px;">${s} (${totP} gruppi)</summary>`; 
+        cips.forEach(c => { 
+            let gl = cipMap[c]; let richNome = gl[0].richiedente; 
+            if (!isTrattazione) html += `<details style="margin-top:10px; border:1px solid #e1e4e8; padding:8px; background-color:#fafafa; border-left: 4px solid var(--primary);"><summary style="cursor:pointer; font-weight:bold; font-size:14px; color:var(--text-main);">${richNome} (${gl.length} pratiche)</summary><table style="margin-top:10px; width:100%;"><tr><th>Data Invio</th><th>Periodo</th><th>Stato</th></tr>`; 
+            else html += `<div style="margin-top:15px; margin-bottom:5px; padding:5px 10px; background-color:#eef2f5; border-left:4px solid var(--secondary);"><strong style="font-size:14px; color:var(--text-main);">${richNome}</strong></div><table><tr><th>Dettaglio Invio</th><th>Periodo / Azioni</th><th>Stato</th></tr>`; 
+            gl.forEach(g => { 
+                let ids = g.items.map(i => i.riga); let tsId = g.info.idGruppo; let chiave = g.info.idGruppo + "_" + g.cip; 
+                if (isTrattazione && liv >= 4 && s === 'APPROVATO') chiave = "ACCORPATO_" + g.cip; 
+                praticheRaggruppate[chiave] = g; 
+                let bT="", bL="", bE="", bR=""; 
+                if (isTrattazione) { 
+                    if ((liv === 2 || liv === 5) && s === "IN ATTESA") { bT = `<button class="btn btn-vista btn-small" onclick="eseguiAzioneMultipla([${ids}], 'VISTATO')">VISTA TUTTO</button>`; bR = `<button class="btn btn-danger btn-small" onclick="eseguiAzioneMultipla([${ids}], 'RIFIUTATO')">RIFIUTA TUTTO</button>`; } 
+                    else if ((liv === 3 || liv === 5) && s === "VISTATO") { bT = `<button class="btn btn-success btn-small" onclick="eseguiAzioneMultipla([${ids}], 'APPROVATO')">APPROVA TUTTO</button>`; bR = `<button class="btn btn-danger btn-small" onclick="eseguiAzioneMultipla([${ids}], 'RIFIUTATO')">RIFIUTA TUTTO</button>`; } 
+                    else if (liv >= 4 && s === "APPROVATO") { bL = `<input type="text" id="prot-${tsId}" placeholder="Nr. Prot." style="width: 100px; padding: 4px; margin: 0 5px 5px 0; font-size: 12px; display: inline-block; border: 1px solid #ccc;"><button class="btn btn-lettera btn-small" onclick="generaLetteraGruppo('${chiave}', '${tsId}', event)">GENERA LETTERA</button>`; bE = `<button id="btn-evadi-${tsId}" class="btn btn-evadi btn-small" style="display:none;" onclick="eseguiAzioneMultipla([${ids}], 'EVASA')">EVADI TUTTO</button>`; bR = `<button class="btn btn-danger btn-small" onclick="eseguiAzioneMultipla([${ids}], 'RIFIUTATO')">RIFIUTA TUTTO</button>`; } 
+                } 
+                let dInv = g.items.some(it => it.idGruppo !== g.items[0].idGruppo) ? `<span style="color:#666; font-style:italic;">Richieste Accorpate</span>` : `Inviata il: ${g.info.dataRichiesta}`; 
+                if (g.info.inseritoDa) dInv += `<br><small style="color:var(--vista); font-weight:bold;">(Inserito da: ${g.info.inseritoDa})</small>`; 
+                let stB = `<span style="border: 2px solid ${getColoreStato(g.stato)}; color: ${getColoreStato(g.stato)}; padding: 4px 8px; border-radius: 6px; font-size: 12px; font-weight: bold; background-color: white; display: inline-block;">${g.stato}</span>`; 
+                html += `<tr class="row-gruppo"><td style="width:20%;">${dInv}</td><td><b>${g.items.length} giorni inseriti</b> <div style="margin-top:5px;">${bT} ${bL} ${bE} ${bR}</div></td><td style="width:20%; text-align:center;">${stB}</td></tr>`; 
+                g.items.sort((a,b) => parseDateIT(a.inizio) - parseDateIT(b.inizio)); 
+                g.items.forEach(i => { 
+                    let nt = i.motivazione ? `<br><small style="color:red;">Note: ${i.motivazione}</small>` : ""; 
+                    let opTesto = ""; if (i.operatore && String(i.operatore).trim() !== "") { opTesto = `<div style="margin-top: 6px; font-size: 10px; font-weight: normal; color: #555; line-height: 1.2;">da<br>${String(i.operatore).toUpperCase()}</div>`; }
+                    let az = ""; let bC = ""; 
+                    if (isTrattazione) { 
+                        if ((liv === 2 || liv === 5) && i.stato === "IN ATTESA") az = `<br><button class="btn btn-vista btn-small" onclick="eseguiAzionePratica(${i.riga}, 'VISTATO')">VISTA</button> <button class="btn btn-danger btn-small" onclick="eseguiAzionePratica(${i.riga}, 'RIFIUTATO')">RIFIUTA</button>`; 
+                        else if ((liv === 3 || liv === 5) && i.stato === "VISTATO") az = `<br><button class="btn btn-success btn-small" onclick="eseguiAzionePratica(${i.riga}, 'APPROVATO')">APPROVA</button> <button class="btn btn-danger btn-small" onclick="eseguiAzionePratica(${i.riga}, 'RIFIUTATO')">RIFIUTA</button>`; 
+                    } 
+                    if (liv === 5) bC = ` <button class="btn btn-small" style="background-color:#343a40; color:white; margin-top:5px;" onclick="if(confirm('Confermi CANCELLAZIONE?')) eseguiCancellaGiorno(this, ${i.riga})">DEL</button>`; 
+                    html += `<tr class="row-figlio"><td></td><td>${formattaVisualizzazionePeriodo(i.inizio, i.fine)} ${az} ${bC}</td><td style="text-align:center;"><span style="font-weight:bold; color:${getColoreStato(i.stato)};">${i.stato}</span>${nt}${opTesto}</td></tr>`; 
+                }); 
+            }); 
+            if (!isTrattazione) html += `</table></details>`; else html += `</table>`; 
+        }); 
+        html += `</details>`; 
+    }); 
+    return html; 
+}
+
+function generaHtmlMieRichieste(listaPratiche, statiAmmessi) { 
+    let perStato = {}; statiAmmessi.forEach(s => perStato[s] = []); 
+    let gruppiDict = {}; 
+    listaPratiche.forEach(p => { 
+        let k = p.idGruppo + "_" + p.cip; 
+        if (!gruppiDict[k]) gruppiDict[k] = { info: p, items: [], stato: p.stato, minDate: Infinity }; 
+        gruppiDict[k].items.push(p); 
+        let dTime = parseDateIT(p.inizio); if (dTime < gruppiDict[k].minDate) gruppiDict[k].minDate = dTime; 
+    }); 
+    Object.values(gruppiDict).forEach(g => { if (perStato[g.stato]) perStato[g.stato].push(g); }); 
+    let html = ""; 
+    statiAmmessi.forEach(s => { 
+        let gl = perStato[s]; if (!gl || gl.length === 0) return; gl.sort((a,b) => a.minDate - b.minDate); 
+        let isOpen = (s === "IN ATTESA" || s === "VISTATO" || s === "APPROVATO" || s === "EVASA" || s === "EVASO") ? "open" : ""; 
+        html += `<details style="border:1px solid #ccc; margin-bottom:10px; padding:10px; background:white;" ${isOpen}><summary style="cursor: pointer; font-weight:bold; color:${getColoreStato(s)}; font-size:15px;">${s} (${gl.length} richieste)</summary><table style="margin-top:10px;"><tr><th>Data Invio</th><th>Periodo / Azioni</th><th>Stato</th></tr>`; 
+        gl.forEach(g => { 
+            let dInv = g.items.some(it => it.idGruppo !== g.items[0].idGruppo) ? `<span style="color:#666; font-style:italic;">Richieste Accorpate</span>` : `Inviata il: ${g.info.dataRichiesta}`; 
+            if (g.info.inseritoDa) dInv += `<br><small style="color:var(--vista); font-weight:bold;">(Inserito da: ${g.info.inseritoDa})</small>`; 
+            let stB = `<span style="border: 2px solid ${getColoreStato(g.stato)}; color: ${getColoreStato(g.stato)}; padding: 4px 8px; border-radius: 6px; font-size: 12px; font-weight: bold; background-color: white; display: inline-block;">${g.stato}</span>`; 
+            html += `<tr class="row-gruppo"><td style="width:20%;">${dInv}</td><td><b>${g.items.length} giorni inseriti</b></td><td style="width:20%; text-align:center;">${stB}</td></tr>`; 
+            g.items.sort((a,b) => parseDateIT(a.inizio) - parseDateIT(b.inizio)); 
+            g.items.forEach(i => { 
+                let nt = i.motivazione ? `<br><small style="color:red;">Note: ${i.motivazione}</small>` : ""; 
+                let opTesto = ""; if (i.operatore && String(i.operatore).trim() !== "") { opTesto = `<div style="margin-top: 6px; font-size: 10px; font-weight: normal; color: #555; line-height: 1.2;">da<br>${String(i.operatore).toUpperCase()}</div>`; }
+                let az = ""; 
+                if ((i.stato === "EVASA" || i.stato === "EVASO") && i.isScaduta) { 
+                    let sD = new Date(parseDateIT(i.inizio)); let eD = new Date(parseDateIT(i.fine)); let c = new Date(sD); 
+                    az += `<div style="margin-top:8px;">`; 
+                    while (c <= eD) { 
+                        let isD = c.getFullYear() + "-" + String(c.getMonth()+1).padStart(2,'0') + "-" + String(c.getDate()).padStart(2,'0'); 
+                        let shD = String(c.getDate()).padStart(2,'0') + "/" + String(c.getMonth()+1).padStart(2,'0'); 
+                        az += `<button class="btn btn-small btn-fruito" style="margin-right:5px; margin-bottom:5px;" onclick="eseguiConfermaGiornoFruito(this, ${i.riga}, '${isD}')">Conferma ${shD}</button>`; 
+                        c.setDate(c.getDate() + 1); 
+                    } 
+                    az += `</div>`; 
+                } 
+                html += `<tr class="row-figlio"><td></td><td>${formattaVisualizzazionePeriodo(i.inizio, i.fine)} ${az}</td><td style="text-align:center;"><span style="font-weight:bold; color:${getColoreStato(i.stato)};">${i.stato}</span>${nt}${opTesto}</td></tr>`; 
+            }); 
+        }); 
+        html += `</table></details>`; 
+    }); 
+    return html; 
+}
+
+function caricaMieRichieste() { azzeraNotificaPermessiLocale('MIE'); google.script.run.withSuccessHandler(res => { const st = res.statistiche; document.getElementById('box-mie-statistiche').innerHTML = `<strong>Riepilogo mese corrente:</strong><ul><li>Fruiti: <b>${st.fruiti}</b></li><li>Chiesti: <b>${st.chiesti}</b></li><li>In sospeso: <b>${st.inSospeso}</b></li></ul>`; document.getElementById('tabella-mie-trattazione').innerHTML = generaHtmlMieRichieste(res.richieste, ["IN ATTESA", "VISTATO", "APPROVATO"]) || "<p>Nessuna richiesta in corso.</p>"; document.getElementById('tabella-mie-daconfermare').innerHTML = generaHtmlMieRichieste(res.richieste, ["EVASA", "EVASO"]) || "<p>Nessuna richiesta da confermare in questo momento.</p>"; document.getElementById('tabella-mie-storico').innerHTML = generaHtmlMieRichieste(res.richieste, ["FRUITO", "RIFIUTATO", "RIFIUTATA"]) || "<p>Nessuna richiesta storicizzata.</p>"; }).getMieRichiesteEStatistiche(utenteCorrente.cip); }
+
+function caricaPratiche() { azzeraNotificaPermessiLocale('GESTIONE'); let liv = GERARCHIA[utenteCorrente.ruoloBase] || 1; let ti = "Gestione Pratiche"; let so = "Elenco pratiche operative."; if (liv === 2) { ti = "Pratiche da Vistare"; so = "Pratiche in attesa di Visto."; } if (liv === 3) { ti = "Pratiche da Approvare"; so = "Pratiche vistate in attesa di Approvazione."; } if (liv === 4) { ti = "Pratiche da Evadere"; so = "Pratiche approvate in attesa di Lettera ed Evasione."; } if (liv === 5) { ti = "Supervisione Pratiche"; so = "Visione globale di amministrazione."; } document.getElementById('titolo-gestione').innerText = ti; document.getElementById('sottotitolo-gestione').innerText = so; document.getElementById('tabella-container').innerHTML = "Ricerca pratiche in corso..."; document.getElementById('tabella-storico-container').innerHTML = "Caricamento storico..."; caricaNotificheDashboard(false); google.script.run.withSuccessHandler(dati => { renderTabella(dati); }).withFailureHandler(err => { document.getElementById('tabella-container').innerHTML = "Errore: " + err.message; }).getPraticheDaGestire(utenteCorrente.provincia, utenteCorrente.ruoloBase); }
+
+function renderTabella(dati) { praticheInMemoria = dati.daGestire; let sl = dati.storico; let co = dati.cipOrder; let liv = GERARCHIA[utenteCorrente.ruoloBase] || 1; let ht = "<p>Nessuna pratica in attesa di intervento.</p>"; if (praticheInMemoria && praticheInMemoria.length > 0) { if (liv === 2) ht = generaHtmlGestione(praticheInMemoria, ["IN ATTESA"], co, true); else if (liv === 3) ht = generaHtmlGestione(praticheInMemoria, ["VISTATO"], co, true); else if (liv === 4) ht = generaHtmlGestione(praticheInMemoria, ["APPROVATO"], co, true); else if (liv === 5) ht = generaHtmlGestione(praticheInMemoria, ["IN ATTESA", "VISTATO", "APPROVATO"], co, true); } document.getElementById('tabella-container').innerHTML = ht; let hs = "<p>Nessuna pratica trattata di recente.</p>"; if (sl && sl.length > 0) { let st = []; if (liv === 2) st = ["VISTATO", "APPROVATO", "EVASA", "EVASO", "FRUITO", "RIFIUTATO", "RIFIUTATA"]; else if (liv === 3) st = ["APPROVATO", "RIFIUTATO", "RIFIUTATA", "EVASA", "EVASO", "FRUITO"]; else st = ["EVASA", "EVASO", "FRUITO", "RIFIUTATO", "RIFIUTATA"]; hs = generaHtmlGestione(sl, st, co, false); } document.getElementById('tabella-storico-container').innerHTML = hs; }
+
+function eseguiAzioneMultipla(ids, a) {
+  let note = "";
+  if (a.includes("RIFIUTATO")) {
+    note = prompt("MOTIVAZIONE RIFIUTO (Verrà applicata a tutti i giorni del gruppo):");
+    if (note === null) return;
+    if (note.trim() === "") return alert("La motivazione è obbligatoria per rifiutare le pratiche.");
+  }
+  showToast("Aggiornamento massivo in corso...");
+  google.script.run.withSuccessHandler(res => { if (res && res.success) { showToast("Gruppo aggiornato con successo!"); caricaPratiche(); caricaNotificheDashboard(false); } else { alert("Errore durante l'aggiornamento multiplo: " + (res ? res.error : "Errore sconosciuto")); } }).aggiornaStatoPraticaMultiplo(ids, a, note, utenteCorrente.cognome);
+}
+
+function eseguiAzionePratica(riga, nuovoStato) {
+  let note = "";
+  if (nuovoStato.includes("RIFIUTATO")) {
+    note = prompt("Inserisci la motivazione del rifiuto per questo singolo giorno:");
+    if (note === null) return; 
+    if (note.trim() === "") return alert("La motivazione è obbligatoria per rifiutare una pratica.");
+  }
+  showToast("Aggiornamento riga in corso...");
+  google.script.run.withSuccessHandler(res => { if (res && res.success) { showToast("Singolo giorno aggiornato con successo!"); caricaPratiche(); caricaNotificheDashboard(false); } else { alert("Errore durante l'aggiornamento: " + (res ? res.error : "Errore sconosciuto")); } }).aggiornaStatoPratica(riga, nuovoStato, note, utenteCorrente.cognome);
+}
+
+function generaLetteraGruppo(chiave, tsId, event) { const btn = event.target; const protInput = document.getElementById('prot-' + tsId); const protocollo = protInput ? protInput.value.trim() : ""; if(!protocollo) { alert("Inserisci il Numero di Protocollo prima di generare la lettera."); return; } btn.innerText = "ATTENDERE..."; btn.disabled = true; const gruppo = praticheRaggruppate[chiave]; let pv = gruppo.items.filter(i => i.stato === 'APPROVATO' || i.stato === 'EVASA' || i.stato === 'EVASO' || i.stato === 'FRUITO'); if(pv.length === 0) { alert("Non ci sono giorni approvati."); btn.innerText = "GENERA LETTERA"; btn.disabled = false; return; } pv.sort((a,b) => parseDateIT(a.inizio) - parseDateIT(b.inizio)); const dati = { ...gruppo.info, protocollo: protocollo, periodi: pv.map(i => { return { inizio: formattaDataIT(i.inizio), fine: formattaDataIT(i.fine) }; }) }; google.script.run.withSuccessHandler(res => { if(res && res.success) { window.open(res.url, '_blank'); document.getElementById('btn-evadi-' + tsId).style.display = 'inline-block'; btn.innerText = "RIGENERA LETTERA"; btn.disabled = false; } else { alert(res.error || "Errore"); btn.innerText = "GENERA LETTERA"; btn.disabled = false; } }).generaPDFPratica(dati); }
+
+function caricaDatiStatistiche() { document.getElementById('statistiche-container').innerHTML = "Caricamento in corso..."; google.script.run.withSuccessHandler(res => { datiStatisticheRaw = res; renderStatisticheGlobali(); }).withFailureHandler(err => { document.getElementById('statistiche-container').innerHTML = "<span style='color:red; font-weight:bold;'>Errore: " + err.message + "</span>";}).getDatiStatisticheGlobali(utenteCorrente.provincia, utenteCorrente.ruoloBase, utenteCorrente.cip); }
+
+function renderStatisticheGlobali() { if(!datiStatisticheRaw) return; const fa = document.getElementById('filtro-anno').value; const fm = document.getElementById('filtro-mese').value; let pr = {}; datiStatisticheRaw.utenti.forEach(u => { let pu = datiStatisticheRaw.permessi.filter(p => { if (!p.cip || !u.cip || p.cip.trim() !== u.cip.trim()) return false; let ma = (fa === "TUTTI" || String(p.anno) === fa); let mm = (fm === "TUTTI" || String(p.mese) === fm); return ma && mm; }); if (pu.length === 0) return; if (!pr[u.provincia]) pr[u.provincia] = []; let gs = {}; let hp = ""; pu.sort((a,b) => parseDateIT(a.inizio) - parseDateIT(b.inizio)).forEach(p => { let start, end; if (String(p.inizio).includes('/')) { let dI = String(p.inizio).split('/'); start = new Date(dI[2], dI[1] - 1, dI[0]); let dF = String(p.fine).split('/'); end = new Date(dF[2], dF[1] - 1, dF[0]); } else { start = new Date(p.inizio); end = new Date(p.fine); } let gg = 0; if (!isNaN(start) && !isNaN(end)) gg = Math.round(Math.abs(end - start) / (1000 * 60 * 60 * 24)) + 1; let st = String(p.stato).toUpperCase(); gs[st] = (gs[st] || 0) + gg; hp += `<p style="margin-left: 15px; font-size:13px;">${formattaVisualizzazionePeriodo(p.inizio, p.fine)} (${gg} gg) <span style="font-weight:bold; color:${getColoreStato(p.stato)};">[${p.stato}]</span></p>`; }); let rc = []; let gf = (gs["FRUITO"]||0); let ga = (gs["APPROVATO"]||0) + (gs["EVASA"]||0) + (gs["EVASO"]||0); if (gf > 0) rc.push(`<span style="color: var(--fruito); font-weight: bold;">${gf} gg Confermati Fruiti</span>`); if (ga > 0) rc.push(`<span style="color: var(--success); font-weight: bold;">${ga} gg Approvati/Evasi</span>`); let gat = (gs["IN ATTESA"]||0) + (gs["VISTATO"]||0); if (gat > 0) rc.push(`<span style="color: var(--warning); font-weight: bold;">${gat} gg in Attesa/Vistati</span>`); let gr = (gs["RIFIUTATO"]||0) + (gs["RIFIUTATA"]||0); if (gr > 0) rc.push(`<span style="color: var(--danger); font-weight: bold;">${gr} gg Rifiutati</span>`); pr[u.provincia].push({ nomeCompleto: `${u.cognome} ${u.nome}`, testoRiepilogo: rc.join(" | "), dettaglioPermessi: hp }); }); let hf = ""; let pk = Object.keys(pr).sort(); if (pk.length === 0) hf = "<p style='padding: 10px; color: #777;'>Nessun permesso.</p>"; else { pk.forEach(prov => { hf += `<h4 style="color: var(--primary); border-bottom: 2px solid var(--primary); margin-top: 25px; padding-bottom: 5px;">Provincia di ${prov}</h4>`; pr[prov].sort((a,b) => a.nomeCompleto.localeCompare(b.nomeCompleto)).forEach(utente => { hf += `<details style="border:1px solid #ccc; margin-bottom:5px; padding:5px; background:white;"><summary style="cursor: pointer;"><b>${utente.nomeCompleto}</b> - ${utente.testoRiepilogo}</summary>${utente.dettaglioPermessi}</details>`; }); }); } document.getElementById('statistiche-container').innerHTML = hf; document.getElementById('div-btn-report').style.display = 'block'; }
+
+function generaReportPDF() { const a = document.getElementById('filtro-anno').value; const m = document.getElementById('filtro-mese').value; const b = document.getElementById('btn-report-pdf'); b.innerText = "GENERAZIONE..."; b.disabled = true; google.script.run.withSuccessHandler(res => { b.innerText = "ESPORTA REPORT PDF MESE"; b.disabled = false; if(res && res.success) window.open(res.url, '_blank'); else alert(res.error || "Errore."); }).generaReportFruitiPDF(a, m, utenteCorrente.ruoloBase, utenteCorrente.provincia); }
+</script>

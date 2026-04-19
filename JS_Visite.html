@@ -1,0 +1,158 @@
+<script>
+// ==========================================
+// FUNZIONI VISITE AI REPARTI
+// ==========================================
+
+function popolaOrariVisita() {
+    let select = document.getElementById('visita-ora');
+    if (!select || select.options.length > 1) return;
+    for (let h = 0; h < 24; h++) {
+        let hh = String(h).padStart(2, '0');
+        select.innerHTML += `<option value="${hh}:00">${hh}:00</option>`;
+        select.innerHTML += `<option value="${hh}:30">${hh}:30</option>`;
+    }
+}
+
+function arrotondaMezzora(el) {
+    if(!el.value) return; 
+    let parts = el.value.split(':'); let h = parseInt(parts[0]); let m = parseInt(parts[1]);
+    if (m < 15) m = '00'; else if (m < 45) m = '30'; else { m = '00'; h = (h + 1) % 24; }
+    el.value = String(h).padStart(2,'0') + ':' + m;
+}
+
+function onclickMieVisite() { mostraSezioneVisite('mie-visite'); caricaMieVisite(); }
+function onclickGestioneVisite() { mostraSezioneVisite('gestione-visite'); caricaGestioneVisite(); }
+
+function caricaMenuPartecipantiVisita() { 
+    let html = ""; let liv = GERARCHIA[utenteCorrente.ruoloBase] || 1; let isSegrGenER = (liv === 2 && utenteCorrente.provincia === 'EMILIA ROMAGNA'); let targetUtenti = utentiVisita; 
+    if (targetUtenti.length === 0) { 
+        let nomeCombo = `${utenteCorrente.cognome} ${utenteCorrente.nome}`; html = `<option value="${utenteCorrente.cip}" data-nome="${nomeCombo}">ME STESSO</option>`; 
+    } else { 
+        if (isSegrGenER || liv >= 3) { 
+            let province = []; let hasER = false; targetUtenti.forEach(u => { if (u.provincia === 'EMILIA ROMAGNA') hasER = true; else if (!province.includes(u.provincia)) province.push(u.provincia); }); 
+            if (hasER) province.unshift('EMILIA ROMAGNA'); 
+            province.forEach(prov => { 
+                html += `<optgroup label="Provincia di ${prov}">`; 
+                targetUtenti.filter(u => u.provincia === prov).forEach(u => { let nomeCombo = `${u.cognome} ${u.nome}`; html += `<option value="${u.cip}" data-nome="${nomeCombo}">${nomeCombo} [${u.carica}]</option>`; }); 
+                html += `</optgroup>`; 
+            }); 
+        } else { 
+            targetUtenti.forEach(u => { let nomeCombo = `${u.cognome} ${u.nome}`; html += `<option value="${u.cip}" data-nome="${nomeCombo}">${nomeCombo} [${u.carica}]</option>`; }); 
+        } 
+    } 
+    document.getElementById('select-partecipanti-visita').innerHTML = html; partecipantiVisitaCorrente = []; renderPartecipantiVisita(); 
+}
+
+function aggiungiPartecipanteVisita() { const sel = document.getElementById('select-partecipanti-visita'); if(!sel || sel.options.length === 0) return; const opt = sel.options[sel.selectedIndex]; const cip = opt.value; const nome = opt.getAttribute('data-nome'); if(!partecipantiVisitaCorrente.some(p => p.cip === cip)) { partecipantiVisitaCorrente.push({ cip: cip, nome: nome }); renderPartecipantiVisita(); } else alert("Già aggiunto!"); }
+function rimuoviPartecipanteVisita(index) { partecipantiVisitaCorrente.splice(index, 1); renderPartecipantiVisita(); }
+
+function renderPartecipantiVisita() { 
+    const list = document.getElementById('lista-partecipanti-correnti'); list.innerHTML = ""; 
+    if(partecipantiVisitaCorrente.length === 0) { list.innerHTML = `<li style="background-color: transparent; border: none; padding: 0; color: #777;">Nessun partecipante aggiunto.</li>`; return; } 
+    partecipantiVisitaCorrente.forEach((p, i) => { list.innerHTML += `<li style="padding: 5px 10px; margin-bottom: 2px;"><span>• ${p.nome}</span><button class="btn btn-danger btn-small" style="margin:0;" onclick="rimuoviPartecipanteVisita(${i})">X</button></li>`; }); 
+}
+
+function aggiungiVisitaAllaBozza() { 
+    const reparto = document.getElementById('visita-reparto').value.trim(); const dataV = document.getElementById('visita-data').value; const oraV = document.getElementById('visita-ora').value; 
+    if(!reparto) return alert("Inserisci il Reparto."); if(!dataV) return alert("Seleziona la data."); if(!oraV) return alert("Seleziona l'ora."); if(partecipantiVisitaCorrente.length === 0) return alert("Aggiungi partecipanti."); 
+    bozzaVisite.push({ reparto: reparto, data: dataV, ora: oraV, partecipanti: partecipantiVisitaCorrente.map(p => ({cip: p.cip, nome: p.nome})) }); 
+    document.getElementById('visita-reparto').value = ''; document.getElementById('visita-data').value = ''; document.getElementById('visita-ora').value = ''; partecipantiVisitaCorrente = []; renderPartecipantiVisita(); renderBozzaVisite(); 
+}
+
+function rimuoviVisitaDaBozza(index) { bozzaVisite.splice(index, 1); renderBozzaVisite(); }
+
+function renderBozzaVisite() { 
+    const list = document.getElementById('lista-visite-bozza'); const btn = document.getElementById('btn-invia-visite'); list.innerHTML = ""; 
+    if(bozzaVisite.length === 0) { list.innerHTML = `<li style="background-color: transparent; border: none; color: #777;">Nessuna visita nel carrello.</li>`; btn.style.display = "none"; return; } 
+    bozzaVisite.forEach((v, i) => { let parts = v.partecipanti.map(p => p.nome).join(", "); list.innerHTML += `<li><div style="font-size:13px; line-height: 1.5;"><strong style="color:var(--primary); font-size:15px;">${v.reparto}</strong><br>Il <b>${formattaDataIT(v.data)}</b> alle ore <b>${v.ora}</b><br><i>Partecipanti: ${parts}</i></div><button class="btn btn-danger btn-small" onclick="rimuoviVisitaDaBozza(${i})">X</button></li>`; }); 
+    btn.innerText = `INVIA ${bozzaVisite.length} RICHIESTE AL APPROVATORE`; btn.style.display = "block"; 
+}
+
+function inviaRichiestaVisite() { 
+    const btn = document.getElementById('btn-invia-visite'); const msg = document.getElementById('msg-visite'); btn.disabled = true; msg.innerText = "Invio in corso..."; msg.style.color = "black"; 
+    const dati = { cipInseritore: utenteCorrente.cip, nomeInseritore: utenteCorrente.cognome + " " + utenteCorrente.nome, visite: bozzaVisite }; 
+    google.script.run.withSuccessHandler(res => { 
+        if (res && res.error) { msg.innerText = "Errore: " + res.error; msg.style.color = "red"; btn.disabled = false; } 
+        else { bozzaVisite = []; renderBozzaVisite(); onclickMieVisite(); caricaNotificheDashboard(false); msg.innerText = "Visita inviata!"; msg.style.color = "green"; btn.disabled = false; } 
+    }).withFailureHandler(err => { msg.innerText = "Errore: " + err.message; msg.style.color = "red"; btn.disabled = false; }).salvaRichiestaVisita(dati); 
+}
+
+function caricaMieVisite() { 
+    azzeraNotificaVisitaLocale('MIE'); 
+    google.script.run.withSuccessHandler(dati => { 
+        let mie = dati.mie; let html = "<table><tr><th>Data Invio</th><th>Dettagli Visita</th><th>Stato</th></tr>"; 
+        if(mie.length === 0) { document.getElementById('tabella-mie-visite').innerHTML = "<p>Non sei inserito in nessuna visita al momento.</p>"; return; } 
+        mie.forEach(v => { 
+            let partecipantiPuliti = v.partecipanti.replace(/\s\([^)]+\)/g, ''); 
+            let opTesto = ""; if (v.operatore && String(v.operatore).trim() !== "") { opTesto = `<div style="margin-top: 6px; font-size: 10px; font-weight: normal; color: #555; line-height: 1.2;">da<br>${String(v.operatore).toUpperCase()}</div>`; }
+            html += `<tr><td style="width: 20%;">${v.dataInvio}<br><small style="color:var(--vista); font-weight:bold;">Da: ${v.inseritore}</small></td><td><strong style="color:var(--primary);">${v.reparto}</strong><br>Data: <b>${v.dataVisita}</b> ore <b>${v.oraVisita}</b><br><small>Partecipanti: ${partecipantiPuliti}</small></td><td style="width: 20%; text-align: center;"><span style="border: 2px solid ${getColoreStato(v.stato)}; color: ${getColoreStato(v.stato)}; padding: 4px 8px; border-radius: 6px; font-size: 12px; font-weight: bold; background-color: white; display: inline-block;">${v.stato}</span>${opTesto}</td></tr>`; 
+        }); html += "</table>"; 
+        document.getElementById('tabella-mie-visite').innerHTML = html; 
+    }).getVisite(utenteCorrente.ruoloBase, utenteCorrente.cip, utenteCorrente.cognome); 
+}
+
+function caricaGestioneVisite() { 
+    azzeraNotificaVisitaLocale('GESTIONE'); document.getElementById('tabella-gestione-visite').innerHTML = "Ricerca visite in corso..."; document.getElementById('tabella-storico-visite').innerHTML = "Caricamento storico..."; let liv = GERARCHIA[utenteCorrente.ruoloBase] || 1; 
+    google.script.run.withSuccessHandler(dati => { 
+        let daGestire = dati.daGestire; let hG = ""; let btnLettera = ""; 
+        if(liv >= 4 && daGestire.some(v => v.stato === 'APPROVATO')) { btnLettera = `<div style="margin-bottom:15px; padding:10px; background-color:#eef2f5; border:1px solid #ccc; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;"><input type="text" id="prot-visite" placeholder="Nr. Protocollo" style="width: 150px; padding: 8px; margin: 0; font-size: 13px; border: 1px solid #ccc;"><button class="btn btn-lettera" id="btn-main-genera-visite" style="margin:0;" onclick="generaLetteraVisite(this)">GENERA LETTERA VISITE SELEZIONATE</button><button id="btn-evadi-visite" class="btn btn-evadi" style="display:none; margin:0;" onclick="evadiVisiteSelezionate()">EVADI SELEZIONATE</button></div>`; } 
+        hG += btnLettera; hG += "<table><tr>"; if(liv >= 4) hG += `<th style="width: 5%;"><input type="checkbox" onchange="selezionaTutteVisite(this)"></th>`; hG += "<th>Data Invio</th><th>Dettagli Visita</th><th>Azioni / Stato</th></tr>"; 
+        if(daGestire.length === 0) hG = "<p>Nessuna visita in attesa di approvazione.</p>"; 
+        else { 
+            daGestire.forEach(v => { 
+                let pC = v.partecipanti.replace(/\s\([^)]+\)/g, ''); let cb = (liv >= 4 && v.stato === 'APPROVATO') ? `<td><input type="checkbox" class="cb-visita" value="${v.riga}"></td>` : (liv >= 4 ? `<td></td>` : ``); 
+                let repHTML = ""; if (liv >= 4 && v.stato === 'APPROVATO') { repHTML = `<input type="text" id="inline-rep-${v.riga}" value="${v.reparto.replace(/"/g, '&quot;')}" style="font-weight:bold; color:var(--primary); width:100%; border:1px solid #aaa; padding:5px; font-size:14px; margin-bottom:5px;" title="Puoi modificare questo campo prima di stampare">`; } else { repHTML = `<strong style="color:var(--primary);">${v.reparto}</strong><br>`; }
+                let opTesto = ""; if (v.operatore && String(v.operatore).trim() !== "") { opTesto = `<div style="margin-top: 6px; font-size: 10px; font-weight: normal; color: #555; line-height: 1.2;">da<br>${String(v.operatore).toUpperCase()}</div>`; }
+                let azioni = ""; if ((liv >= 3) && v.stato === "IN ATTESA") { azioni = `<button class="btn btn-success btn-small" onclick="eseguiAzioneVisita(${v.riga}, 'APPROVATO')">APPROVA</button> <button class="btn btn-danger btn-small" onclick="eseguiAzioneVisita(${v.riga}, 'RIFIUTA')">RIFIUTA</button>`; } else if (liv >= 4 && v.stato === "APPROVATO") { azioni = `<span style="color:var(--success); font-weight:bold;">APPROVATO</span>${opTesto}<br><small style="color:#666; margin-top:5px; display:inline-block;">Seleziona per Lettera</small>`; } 
+                hG += `<tr>${cb}<td style="width: 20%;">${v.dataInvio}<br><small style="color:var(--vista); font-weight:bold;">Da: ${v.inseritore}</small></td><td>${repHTML}Data: <b>${v.dataVisita}</b> ore <b>${v.oraVisita}</b><br><small>Partecipanti: ${pC}</small></td><td style="width: 25%; text-align:center;">${azioni}</td></tr>`; 
+            }); hG += "</table>"; 
+        } 
+        document.getElementById('tabella-gestione-visite').innerHTML = hG; 
+        
+        let storico = dati.storico; let hS = "<table><tr><th>Data Invio</th><th>Dettagli Visita</th><th>Stato</th></tr>"; 
+        if(storico.length === 0) hS = "<p>Nessuna visita nello storico.</p>"; 
+        else { 
+            storico.forEach(v => { 
+                let pC = v.partecipanti.replace(/\s\([^)]+\)/g, ''); let opTesto = ""; if (v.operatore && String(v.operatore).trim() !== "") { opTesto = `<div style="margin-top: 6px; font-size: 10px; font-weight: normal; color: #555; line-height: 1.2;">da<br>${String(v.operatore).toUpperCase()}</div>`; }
+                hS += `<tr><td style="width: 20%;">${v.dataInvio}<br><small style="color:var(--vista); font-weight:bold;">Da: ${v.inseritore}</small></td><td><strong style="color:var(--primary);">${v.reparto}</strong><br>Data: <b>${v.dataVisita}</b> ore <b>${v.oraVisita}</b><br><small>Partecipanti: ${pC}</small></td><td style="width: 20%; text-align: center;"><span style="border: 2px solid ${getColoreStato(v.stato)}; color: ${getColoreStato(v.stato)}; padding: 4px 8px; border-radius: 6px; font-size: 12px; font-weight: bold; background-color: white; display: inline-block;">${v.stato}</span>${opTesto}</td></tr>`; 
+            }); hS += "</table>"; 
+        } document.getElementById('tabella-storico-visite').innerHTML = hS; 
+    }).getVisite(utenteCorrente.ruoloBase, utenteCorrente.cip, utenteCorrente.cognome); 
+}
+
+function eseguiAzioneVisita(riga, stato) { google.script.run.withSuccessHandler(res => { if(!res.success) alert("Errore: " + res.error); else { caricaGestioneVisite(); caricaNotificheDashboard(false); } }).aggiornaStatoVisita(riga, stato, utenteCorrente.cognome); }
+function selezionaTutteVisite(source) { let cbs = document.querySelectorAll('.cb-visita'); cbs.forEach(cb => cb.checked = source.checked); }
+
+function generaLetteraVisite(btn) { 
+    let selezionateCbs = Array.from(document.querySelectorAll('.cb-visita:checked')); 
+    if(selezionateCbs.length === 0) return alert("Seleziona almeno una visita approvata per generare la lettera."); 
+    let protInput = document.getElementById('prot-visite'); let protocollo = protInput ? protInput.value.trim() : ""; 
+    if(!protocollo) return alert("Inserisci il Numero di Protocollo prima di generare la lettera."); 
+
+    let righe = []; let repartiModificati = {};
+    selezionateCbs.forEach(cb => { let riga = parseInt(cb.value); righe.push(riga); let inputReparto = document.getElementById(`inline-rep-${riga}`); if (inputReparto) repartiModificati[riga] = inputReparto.value.trim(); });
+
+    btn.innerText = "ATTENDERE..."; btn.disabled = true;
+    google.script.run.withSuccessHandler(res => { 
+        btn.innerText = "GENERA LETTERA VISITE SELEZIONATE"; btn.disabled = false; 
+        if(res && res.success) { window.open(res.url, '_blank'); document.getElementById('btn-evadi-visite').style.display = 'inline-block'; } 
+        else alert(res.error || "Errore nella generazione del PDF."); 
+    }).generaPDFVisite(righe, protocollo, repartiModificati); 
+}
+
+function confermaEGeneraLetteraVisite() {
+    let btn = document.getElementById('btn-conferma-edit-reparti'); let btnMain = document.getElementById('btn-main-genera-visite'); let protocollo = btn.getAttribute('data-protocollo');
+    let selezionateCbs = Array.from(document.querySelectorAll('.cb-visita:checked')); let righe = selezionateCbs.map(cb => parseInt(cb.value)); 
+    let repartiModificati = {};
+    selezionateCbs.forEach(cb => { let riga = cb.value; let newVal = document.getElementById(`edit-rep-riga-${riga}`).value.trim(); repartiModificati[riga] = newVal; });
+
+    btn.innerText = "GENERAZIONE IN CORSO..."; btn.disabled = true; if(btnMain) btnMain.innerText = "GENERAZIONE...";
+
+    google.script.run.withSuccessHandler(res => { 
+        btn.innerText = "SALVA E GENERA LETTERA"; btn.disabled = false; if(btnMain) btnMain.innerText = "PREPARA LETTERA VISITE SELEZIONATE"; document.getElementById('modal-edit-reparti').style.display = 'none';
+        if(res && res.success) { window.open(res.url, '_blank'); document.getElementById('btn-evadi-visite').style.display = 'inline-block'; } else alert(res.error || "Errore nella generazione del PDF."); 
+    }).generaPDFVisite(righe, protocollo, repartiModificati); 
+}
+
+function evadiVisiteSelezionate() { let selezionate = Array.from(document.querySelectorAll('.cb-visita:checked')).map(cb => parseInt(cb.value)); if(selezionate.length === 0) return alert("Nessuna visita selezionata."); document.getElementById('btn-evadi-visite').innerText = "EVASIONE IN CORSO..."; document.getElementById('btn-evadi-visite').disabled = true; google.script.run.withSuccessHandler(res => { if(res.success) { caricaGestioneVisite(); caricaNotificheDashboard(false); } else alert(res.error); }).aggiornaStatoVisiteMultiplo(selezionate, 'EVASO', utenteCorrente.cognome); }
+</script>

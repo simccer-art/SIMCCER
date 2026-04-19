@@ -1,0 +1,260 @@
+<script>
+// ==========================================
+// FUNZIONI CONTABILITÀ
+// ==========================================
+let movimentoInSospeso = null; 
+
+function caricaDatiContabilita() {
+    try {
+        let ruoloStr = String(utenteCorrente.ruolo || "").toUpperCase();
+        if (ruoloStr.includes('TESORIERE2')) segreteriaContabilita = "Provinciale (" + utenteCorrente.provincia + ")";
+        else segreteriaContabilita = "Regionale (EMILIA ROMAGNA)";
+        
+        let elTitolo = document.getElementById('contab-titolo-segr');
+        if(elTitolo) elTitolo.innerText = segreteriaContabilita.replace('(', '').replace(')', '');
+        
+        let elTabella = document.getElementById('tabella-contabilita');
+        if(elTabella) elTabella.innerHTML = "<strong>Caricamento dati contabili in corso... attendere.</strong>";
+
+        google.script.run
+            .withSuccessHandler(dati => {
+                try {
+                    if (!dati) throw new Error("Il server ha restituito dati vuoti. Verifica di aver aggiornato la funzione nel file .gs");
+                    if (dati.error) throw new Error(dati.error);
+
+                    datiContabilitaCache = dati;
+                    
+                    if(document.getElementById('contab-istituto')) document.getElementById('contab-istituto').innerText = dati.impostazioni.istituto || "-"; 
+                    if(document.getElementById('contab-iban')) document.getElementById('contab-iban').innerText = dati.impostazioni.iban || "-"; 
+                    if(document.getElementById('contab-cf')) document.getElementById('contab-cf').innerText = dati.impostazioni.cf || "-";
+                    
+                    if(document.getElementById('edit-contab-istituto')) document.getElementById('edit-contab-istituto').value = dati.impostazioni.istituto || ""; 
+                    if(document.getElementById('edit-contab-iban')) document.getElementById('edit-contab-iban').value = dati.impostazioni.iban || ""; 
+                    if(document.getElementById('edit-contab-cf')) document.getElementById('edit-contab-cf').value = dati.impostazioni.cf || "";
+                    
+                    let selCausale = document.getElementById('contab-causale'); 
+                    if(selCausale) {
+                        selCausale.innerHTML = '<option value="">Seleziona...</option>'; 
+                        let caus = dati.causali || [];
+                        caus.forEach(c => { selCausale.innerHTML += `<option value="${c}">${c}</option>`; });
+                    }
+                    
+                    let selOrdinante = document.getElementById('contab-ordinante'); 
+                    if(selOrdinante) {
+                        selOrdinante.innerHTML = '<option value="">(Nessuno)</option>'; 
+                        let ords = dati.ordinanti || [];
+                        ords.forEach(o => { selOrdinante.innerHTML += `<option value="${o}">${o}</option>`; });
+                    }
+                    
+                    let oggi = new Date(); 
+                    if(document.getElementById('contab-data')) {
+                        document.getElementById('contab-data').value = oggi.getFullYear() + "-" + String(oggi.getMonth() + 1).padStart(2, '0') + "-" + String(oggi.getDate()).padStart(2, '0');
+                    }
+                    
+                    window.isContabEditMode = false; 
+                    renderTabellaMovimenti();
+                    
+                } catch (e) {
+                    alert("Errore nell'interfaccia Contabilità: " + e.message);
+                    if(elTabella) elTabella.innerHTML = "<span style='color:red;'>Errore d'interfaccia: " + e.message + "</span>";
+                }
+            })
+            .withFailureHandler(err => {
+                alert("Errore dal Server Google: " + err.message);
+                if(elTabella) elTabella.innerHTML = "<span style='color:red;'>Errore Server: " + err.message + "</span>";
+            })
+            .getDatiContabilita(segreteriaContabilita);
+
+    } catch (errGenerico) {
+        alert("Errore Generico all'avvio della Contabilità: " + errGenerico.message);
+    }
+}
+
+function renderTabellaMovimenti() {
+    if (!datiContabilitaCache) return;
+    let filtroMese = document.getElementById('contab-filtro-mese').value; let filtroAnno = document.getElementById('contab-filtro-anno').value; let filtroDa = document.getElementById('contab-filtro-da').value; let filtroA = document.getElementById('contab-filtro-a').value;
+    let movimenti = datiContabilitaCache.movimenti || []; let totInFiltro = 0; let totOutFiltro = 0; let saldoTotaleAssoluto = 0; let isEdit = window.isContabEditMode || false;
+    
+    let btnHtml = isEdit ? `<button class="btn btn-success" style="margin:0;" onclick="salvaModificheContabilita()">SALVA MODIFICHE</button> <button class="btn btn-danger" style="margin:0;" onclick="toggleEditContabilita()">ANNULLA</button>` : `<button class="btn btn-danger" style="margin:0;" id="btn-modifica-registro" onclick="toggleEditContabilita()">MODIFICA REGISTRO</button>`;
+    document.getElementById('btn-container-modifica').innerHTML = btnHtml;
+    
+    let html = `<table style="font-size:13px;"><tr><th style="width:5%;">N.</th><th>Data</th><th>Tipo</th><th>Ordinante/Beneficiario</th><th>Causale</th><th>Dettaglio</th><th>Importo</th>${isEdit ? '<th>Azioni</th>' : '<th style="text-align:center;">Doc</th><th>Operatore</th>'}</tr>`;
+    let filtrati = 0; let prog = 1;
+    
+    let ords = datiContabilitaCache.ordinanti || [];
+    let caus = datiContabilitaCache.causali || [];
+    let optOrdinanti = `<option value="">(Nessuno)</option>` + ords.map(o => `<option value="${o}">${o}</option>`).join(''); 
+    let optCausali = `<option value="">Seleziona...</option>` + caus.map(c => `<option value="${c}">${c}</option>`).join('');
+    
+    movimenti.forEach(m => {
+        let imp = parseFloat(m.importo) || 0;
+        if (m.tipo.includes('ENTRATA')) saldoTotaleAssoluto += imp; else saldoTotaleAssoluto -= imp;
+        
+        let dataMov = new Date(m.dataIso); let matchDa = filtroDa ? dataMov >= new Date(filtroDa) : true; let matchA = filtroA ? dataMov <= new Date(filtroA) : true; let matchMese = (filtroMese === 'TUTTI' || String(m.mese) === filtroMese); let matchAnno = (filtroAnno === 'TUTTI' || String(m.anno) === filtroAnno);
+        if (matchMese && matchAnno && matchDa && matchA) {
+            filtrati++; if (m.tipo.includes('ENTRATA')) totInFiltro += imp; else totOutFiltro += imp;
+            let colorTipo = m.tipo.includes('ENTRATA') ? 'var(--success)' : 'var(--danger)'; let segno = m.tipo.includes('ENTRATA') ? '+' : '-';
+            if(isEdit) {
+                let selIn = m.tipo.includes('ENTRATA') ? 'selected' : ''; let selOut = m.tipo.includes('USCITA') ? 'selected' : '';
+                let currentOrdHtml = optOrdinanti.replace(`value="${m.ordinante}"`, `value="${m.ordinante}" selected`); if(m.ordinante && !currentOrdHtml.includes('selected')) currentOrdHtml += `<option value="${m.ordinante}" selected>${m.ordinante}</option>`;
+                let currentCauHtml = optCausali.replace(`value="${m.causale}"`, `value="${m.causale}" selected`); if(m.causale && !currentCauHtml.includes('selected')) currentCauHtml += `<option value="${m.causale}" selected>${m.causale}</option>`;
+                html += `<tr class="edit-mov-row" data-riga="${m.riga}"><td>${prog++}</td><td><input type="date" id="em-data-${m.riga}" value="${m.dataIso}" style="width:110px; padding:4px; margin:0; font-size:12px;"></td><td><select id="em-tipo-${m.riga}" style="width:105px; padding:4px; margin:0; font-size:12px; font-weight:normal; color:${colorTipo};" onchange="this.style.color = this.value.includes('ENTRATA') ? 'var(--success)' : 'var(--danger)'; ricalcolaTotaliEdit();"><option value="ENTRATA +" ${selIn} style="color:var(--success); font-weight:normal;">ENTRATA (+)</option><option value="USCITA -" ${selOut} style="color:var(--danger); font-weight:normal;">USCITA (-)</option></select></td><td><select id="em-ord-${m.riga}" style="width:130px; padding:4px; margin:0; font-size:12px;">${currentOrdHtml}</select></td><td><select id="em-cau-${m.riga}" style="width:130px; padding:4px; margin:0; font-size:12px;">${currentCauHtml}</select></td><td><input type="text" id="em-det-${m.riga}" value="${m.dettaglio}" style="width:100px; padding:4px; margin:0; font-size:12px;"></td><td><input type="number" step="0.01" min="0" id="em-imp-${m.riga}" value="${imp}" style="width:80px; padding:4px; margin:0; font-size:12px; text-align:right;" oninput="ricalcolaTotaliEdit()"></td><td style="text-align:center;"><button class="btn btn-danger btn-small" style="margin:0;" onclick="eliminaMov(${m.riga})" title="Elimina operazione">X</button></td></tr>`;
+            } else {
+                let btnDoc = m.fileUrl ? `<a href="${m.fileUrl}" target="_blank" class="btn btn-vista btn-small" style="margin:0; padding:3px 6px; font-size:10px;">VEDI</a>` : `<span style="color:#aaa;">-</span>`;
+                html += `<tr><td>${prog++}</td><td style="width:10%;">${m.dataMovimento}</td><td style="width:10%; color:${colorTipo};">${m.tipo}</td><td>${m.ordinante || '-'}</td><td style="width:20%;">${m.causale}</td><td>${m.dettaglio}</td><td style="width:15%; color:${colorTipo}; text-align:right;">${segno} € ${imp.toFixed(2)}</td><td style="width:5%; text-align:center;">${btnDoc}</td><td style="width:15%; font-size:11px; color:#666;">${m.operatore}</td></tr>`;
+            }
+        }
+    });
+    if (filtrati === 0) html += `<tr><td colspan="${isEdit?8:8}" style="text-align:center;">Nessun movimento trovato per il periodo selezionato.</td></tr>`; html += `</table>`;
+    document.getElementById('tabella-contabilita').innerHTML = html; document.getElementById('contab-tot-in').innerText = "€ " + totInFiltro.toFixed(2); document.getElementById('contab-tot-out').innerText = "€ " + totOutFiltro.toFixed(2);
+    let coloreSaldo = saldoTotaleAssoluto >= 0 ? 'var(--success)' : 'var(--danger)'; document.getElementById('contab-saldo').innerHTML = `<span style="color:${coloreSaldo};">€ ${saldoTotaleAssoluto.toFixed(2)}</span>`;
+}
+
+function toggleEditContabilita() { window.isContabEditMode = !window.isContabEditMode; renderTabellaMovimenti(); }
+
+function ricalcolaTotaliEdit() { let totInFiltro = 0; let totOutFiltro = 0; let saldoModificato = 0; document.querySelectorAll('.edit-mov-row').forEach(riga => { let idRiga = riga.getAttribute('data-riga'); let tipo = document.getElementById('em-tipo-'+idRiga).value; let imp = parseFloat(document.getElementById('em-imp-'+idRiga).value) || 0; if(tipo.includes('ENTRATA')) { totInFiltro += imp; saldoModificato += imp; } else { totOutFiltro += imp; saldoModificato -= imp; } }); document.getElementById('contab-tot-in').innerText = "€ " + totInFiltro.toFixed(2); document.getElementById('contab-tot-out').innerText = "€ " + totOutFiltro.toFixed(2); let coloreSaldo = saldoModificato >= 0 ? 'var(--success)' : 'var(--danger)'; document.getElementById('contab-saldo').innerHTML = `<span style="color:${coloreSaldo};">€ ${saldoModificato.toFixed(2)}</span>`; }
+
+function salvaModificheContabilita() { let righe = document.querySelectorAll('.edit-mov-row'); let modifiche = []; let hasErrors = false; righe.forEach(riga => { let idRiga = riga.getAttribute('data-riga'); let dataV = document.getElementById('em-data-'+idRiga).value; let tipoV = document.getElementById('em-tipo-'+idRiga).value; let ordV = document.getElementById('em-ord-'+idRiga).value; let cauV = document.getElementById('em-cau-'+idRiga).value; let detV = document.getElementById('em-det-'+idRiga).value; let impV = parseFloat(document.getElementById('em-imp-'+idRiga).value); if(!dataV || !cauV || isNaN(impV)) hasErrors = true; modifiche.push({ riga: idRiga, data: dataV, tipo: tipoV, ordinante: ordV, causale: cauV, dettaglio: detV, importo: impV }); }); if(hasErrors) return alert("Assicurati che tutti i campi Data, Causale e Importo siano compilati prima di salvare."); let btn = document.querySelector('#btn-container-modifica .btn-success'); btn.disabled = true; btn.innerText = "SALVATAGGIO..."; google.script.run.withSuccessHandler(res => { if(res.success) { showToast("Modifiche salvate con successo!"); caricaDatiContabilita(); } else alert("Errore durante il salvataggio: " + res.error); }).salvaModificheMultipleContabilita(segreteriaContabilita, modifiche, utenteCorrente.cognome + " " + utenteCorrente.nome); }
+
+function mostraEditConto() { document.getElementById('contab-view-conto').style.display = 'none'; document.getElementById('contab-edit-conto').style.display = 'block'; }
+function annullaEditConto() { document.getElementById('contab-view-conto').style.display = 'block'; document.getElementById('contab-edit-conto').style.display = 'none'; }
+
+function eseguiSalvaConto() { 
+    let ist = document.getElementById('edit-contab-istituto').value.trim(); 
+    let ib = document.getElementById('edit-contab-iban').value.trim(); 
+    let cf = document.getElementById('edit-contab-cf').value.trim(); 
+    let btn = document.querySelector('#contab-edit-conto .btn-success');
+    btn.innerText = "SALVATAGGIO..."; btn.disabled = true;
+    google.script.run.withSuccessHandler(res => { 
+        btn.innerText = "SALVA DATI"; btn.disabled = false;
+        if(res && res.success) { showToast("Dati conto aggiornati!"); caricaDatiContabilita(); annullaEditConto(); } 
+        else alert("Errore dal server: " + (res ? res.error : "Errore sconosciuto")); 
+    }).withFailureHandler(err => { btn.innerText = "SALVA DATI"; btn.disabled = false; alert("Errore di connessione: " + err.message); })
+    .salvaImpostazioniContoContabilita(segreteriaContabilita, ist, ib, cf); 
+}
+
+function aggiungiNuovaCausale() { 
+    let nuova = prompt("Inserisci il nome della nuova causale:"); 
+    if (!nuova || !nuova.trim()) return; 
+    google.script.run.withSuccessHandler(res => { 
+        if (res && res.success) { showToast("Causale aggiunta!"); caricaDatiContabilita(); } 
+        else alert("Errore: " + (res ? res.error : "Errore sconosciuto")); 
+    }).withFailureHandler(err => alert("Errore di connessione: " + err.message))
+    .aggiungiCausaleContabilita(segreteriaContabilita, nuova.trim().toUpperCase()); 
+}
+
+function eliminaCausale() { 
+    let sel = document.getElementById('contab-causale').value; 
+    if (!sel) return alert("Prima seleziona una causale."); 
+    if (!confirm("Sicuro di voler eliminare la causale '" + sel + "'?")) return; 
+    google.script.run.withSuccessHandler(res => { 
+        if(res && res.success) { showToast("Causale eliminata!"); caricaDatiContabilita(); } 
+        else alert("Errore: " + (res ? res.error : "Errore sconosciuto")); 
+    }).withFailureHandler(err => alert("Errore di connessione: " + err.message))
+    .eliminaCausaleContabilita(segreteriaContabilita, sel); 
+}
+
+function aggiungiNuovoOrdinante() { 
+    let nuovo = prompt("Inserisci il nome dell'Ordinante / Beneficiario:"); 
+    if (!nuovo || !nuovo.trim()) return; 
+    google.script.run.withSuccessHandler(res => { 
+        if (res && res.success) { showToast("Nominativo aggiunto!"); caricaDatiContabilita(); } 
+        else alert("Errore: " + (res ? res.error : "Errore sconosciuto")); 
+    }).withFailureHandler(err => alert("Errore di connessione: " + err.message))
+    .aggiungiOrdinanteContabilita(segreteriaContabilita, nuovo.trim().toUpperCase()); 
+}
+
+function eliminaOrdinante() { 
+    let sel = document.getElementById('contab-ordinante').value; 
+    if (!sel) return alert("Prima seleziona un nominativo."); 
+    if (!confirm("Sicuro di voler eliminare '" + sel + "'?")) return; 
+    google.script.run.withSuccessHandler(res => { 
+        if(res && res.success) { showToast("Nominativo eliminato!"); caricaDatiContabilita(); } 
+        else alert("Errore: " + (res ? res.error : "Errore sconosciuto")); 
+    }).withFailureHandler(err => alert("Errore di connessione: " + err.message))
+    .eliminaOrdinanteContabilita(segreteriaContabilita, sel); 
+}
+
+function preparaAnteprimaMovimento() {
+    let d = document.getElementById('contab-data').value;
+    let t = document.getElementById('contab-tipo').value;
+    let c = document.getElementById('contab-causale').value;
+    let det = document.getElementById('contab-dettaglio').value.trim();
+    let imp = parseFloat(document.getElementById('contab-importo').value);
+    let ord = document.getElementById('contab-ordinante').value;
+    
+    let fileInput = document.getElementById('contab-file');
+    let file = (fileInput && fileInput.files.length > 0) ? fileInput.files[0] : null;
+
+    if (!d) return alert("Inserisci la data del movimento.");
+    if (!c) return alert("Seleziona o crea una causale.");
+    if (!imp || imp <= 0) return alert("Inserisci un importo valido.");
+    
+    if (file && file.size > 2 * 1024 * 1024) return alert("Il documento supera i 2 MB.");
+
+    movimentoInSospeso = { data: d, tipo: t, causale: c, dettaglio: det, importo: imp, ordinante: ord, file: file };
+    
+    let color = t.includes('ENTRATA') ? 'var(--success)' : 'var(--danger)';
+    let segno = t.includes('ENTRATA') ? '+' : '-';
+    let parts = d.split('-'); let dataShow = parts[2] + "/" + parts[1] + "/" + parts[0];
+    let fileShow = file ? `<span style="color:var(--primary); font-size:12px;">📁 ${file.name}</span>` : "-";
+
+    document.getElementById('tabella-anteprima-movimento').innerHTML = `<table style="width:100%; border:1px solid #ddd; background:#fff; font-size:14px;"><tr><td>${dataShow}</td><td style="color:${color}; font-weight:bold;">${t}</td><td>${ord || '-'}</td><td>${c}</td><td>${det}</td><td>${fileShow}</td><td style="color:${color}; text-align:right; font-weight:bold; font-size:16px;">${segno} € ${imp.toFixed(2)}</td></tr></table>`;
+    document.getElementById('anteprima-movimento-container').style.display = 'block';
+}
+
+function annullaAnteprima() {
+    movimentoInSospeso = null;
+    if(document.getElementById('contab-importo')) document.getElementById('contab-importo').value = "";
+    if(document.getElementById('contab-dettaglio')) document.getElementById('contab-dettaglio').value = "";
+    if(document.getElementById('contab-causale')) document.getElementById('contab-causale').selectedIndex = 0;
+    if(document.getElementById('contab-ordinante')) document.getElementById('contab-ordinante').selectedIndex = 0;
+    if(document.getElementById('contab-file')) document.getElementById('contab-file').value = "";
+    if(document.getElementById('anteprima-movimento-container')) document.getElementById('anteprima-movimento-container').style.display = 'none';
+}
+
+function modificaAnteprima() { document.getElementById('anteprima-movimento-container').style.display = 'none'; }
+
+function confermaRegistrazioneMovimento() {
+    if (!movimentoInSospeso) return;
+    let btn = document.getElementById('btn-conferma-registra');
+    btn.disabled = true; btn.innerText = "ATTENDERE...";
+    
+    let fileBase64 = ""; let mimeType = ""; let fileName = "";
+
+    const inviaDati = () => {
+        btn.innerText = "INVIO IN CORSO...";
+        let p_selez = String(segreteriaContabilita || ""); let p_data = String(movimentoInSospeso.data || ""); let p_tipo = String(movimentoInSospeso.tipo || "");
+        let p_cau = String(movimentoInSospeso.causale || ""); let p_det = String(movimentoInSospeso.dettaglio || ""); let p_imp = Number(movimentoInSospeso.importo || 0);
+        let p_oper = String(utenteCorrente.cognome + " " + utenteCorrente.nome); let p_ord = String(movimentoInSospeso.ordinante || "");
+        let p_f64 = String(fileBase64 || ""); let p_mime = String(mimeType || ""); let p_fname = String(fileName || "");
+
+        google.script.run
+        .withSuccessHandler(res => { 
+            btn.disabled = false; btn.innerText = "REGISTRA";
+            if (res && res.success) { showToast("Movimento registrato con successo!"); annullaAnteprima(); caricaDatiContabilita(); } 
+            else { alert("Errore salvataggio: " + (res ? res.error : "Errore sconosciuto.")); }
+        })
+        .withFailureHandler(err => { btn.disabled = false; btn.innerText = "REGISTRA"; alert("Errore connessione: " + err.message); })
+        .salvaMovimentoContabilita(p_selez, p_data, p_tipo, p_cau, p_det, p_imp, p_oper, p_ord, p_f64, p_mime, p_fname); 
+    };
+
+    if (movimentoInSospeso.file) {
+        btn.innerText = "LETTURA FILE...";
+        let reader = new FileReader();
+        reader.onload = function(e) { fileBase64 = String(e.target.result.split(',')[1] || ""); mimeType = String(movimentoInSospeso.file.type || ""); fileName = String(movimentoInSospeso.file.name || ""); inviaDati(); };
+        reader.onerror = function() { alert("Impossibile caricare l'allegato dal tuo dispositivo."); btn.disabled = false; btn.innerText = "REGISTRA"; };
+        reader.readAsDataURL(movimentoInSospeso.file);
+    } else { inviaDati(); }
+}
+
+function eliminaMov(riga) { 
+    if(!confirm("Sicuro di voler eliminare questo movimento dal registro? L'operazione non è reversibile.")) return; 
+    google.script.run.withSuccessHandler(res => { 
+        if(res.success) { showToast("Movimento eliminato."); caricaDatiContabilita(); } 
+        else alert("Errore: " + res.error); 
+    }).eliminaMovimentoContabilita(segreteriaContabilita, riga); 
+}
+
+function esportaContabilitaPDF() { let mese = document.getElementById('contab-filtro-mese').value; let anno = document.getElementById('contab-filtro-anno').value; let daData = document.getElementById('contab-filtro-da').value; let aData = document.getElementById('contab-filtro-a').value; let btn = document.getElementById('btn-esporta-pdf'); btn.innerText = "ATTENDERE..."; btn.disabled = true; google.script.run.withSuccessHandler(res => { btn.innerText = "ESPORTA REGISTRO (PDF)"; btn.disabled = false; if(res.success) window.open(res.url, '_blank'); else alert("Errore generazione PDF: " + res.error); }).generaPDFContabilita(segreteriaContabilita, mese, anno, utenteCorrente.cognome + " " + utenteCorrente.nome, daData, aData); }
+</script>

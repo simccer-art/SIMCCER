@@ -1,0 +1,89 @@
+<style>
+    :root {
+      --bg-color: #f4f6f8; 
+      --primary: #8aacc8; 
+      --secondary: #d4a373;
+      --text-main: #333333; 
+      --box-bg: #ffffff; 
+      --danger: #dc3545; 
+      --success: #28a745;
+      --warning: #ffc107; 
+      --evadi: #007bff; 
+      --fruito: #800080; 
+      --vista: #219ebc; 
+      --gray-blue: #6c8ca6;
+      --pagato: #fd7e14;
+      --warning-soft: #ffb74d;
+    }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg-color); color: var(--text-main); margin: 0; padding: 0; }
+    
+    .btn { background-color: var(--primary); color: white; border: none; padding: 10px 15px; font-size: 14px; cursor: pointer; border-radius: 0px; font-weight: bold; transition: 0.3s; margin-right: 5px; margin-bottom: 5px; position: relative; overflow: visible; }
+    .btn:hover { filter: brightness(0.9); }
+    .btn-danger { background-color: var(--danger); }
+    .btn-success { background-color: var(--success); }
+    .btn-vista { background-color: var(--vista); color: white; }
+    .btn-lettera { background-color: var(--danger); color: white; }
+    .btn-evadi { background-color: var(--evadi); color: white; }
+    .btn-pagato { background-color: var(--pagato); color: white; }
+    .btn-fruito { background-color: var(--fruito); color: white; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.2);} 
+    .btn-small { padding: 5px 10px; font-size: 12px; }
+    .btn-attivo { background-color: #1a4b84 !important; color: white !important; pointer-events: none; }
+    .btn:disabled { background-color: #cccccc; cursor: not-allowed; opacity: 0.7; }
+    
+    .btn-rubrica-azione { display: block; width: 100%; padding: 5px 0; margin-bottom: 4px; font-size: 11px; font-weight: normal; text-decoration: none !important; text-align: center; border-radius: 4px; cursor: pointer; background-color: transparent; transition: all 0.2s ease-in-out; box-sizing: border-box; border: 1px solid #ccc; }
+    .btn-out-vista   { border-color: var(--vista); color: var(--vista) !important; }
+    .btn-out-gray    { border-color: var(--gray-blue); color: var(--gray-blue) !important; }
+    .btn-out-warn    { border-color: #ffb74d; color: #ffb74d !important; }
+    .btn-out-danger  { border-color: var(--danger); color: var(--danger) !important; }
+    .btn-rubrica-azione:hover { font-weight: bold !important; background-color: rgba(0, 0, 0, 0.02); }
+    .btn-out-darkblue { border: 1px solid #000080; color: #000080 !important; }
+    .btn-out-darkblue:hover { border-width: 2px; border-color: #000050; color: #000050 !important; }
+    .btn-out-vista:hover  { border-width: 2px; border-color: #023e8a; color: #023e8a !important; }
+    .btn-out-gray:hover   { border-width: 2px; border-color: #334155; color: #334155 !important; }
+    .btn-out-warn:hover   { border-width: 2px; border-color: #e67e22; color: #e67e22 !important; }
+    .btn-out-danger:hover { border-width: 2px; border-color: #991b1b; color: #991b1b !important; }
+    .btn-outline-custom { background-color: transparent; color: var(--gray-blue); border: 2px solid var(--gray-blue); border-radius: 4px; padding: 8px 20px; display: block; margin: 20px auto 0 auto; width: fit-content; font-weight: bold; cursor: pointer; transition: 0.3s; }
+    .btn-outline-custom:hover { background-color: var(--gray-blue); color: white; }
+    
+    .badge { position: absolute; top: -6px; right: -6px; background-color: var(--danger); color: white; border-radius: 50%; width: 18px; height: 18px; font-size: 11px; font-weight: bold; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.3); z-index: 10; }
+    .badge-dash { position: absolute; top: -10px; right: -10px; background-color: var(--danger); color: white; border-radius: 50%; width: 25px; height: 25px; font-size: 13px; font-weight: bold; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 6px rgba(0,0,0,0.4); z-index: 10; border: 2px solid white; }
+    .notifica-banner { background-color: #fff3cd; border-left: 5px solid #ffc107; padding: 15px; margin-bottom: 20px; font-size: 14px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    #toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 9999; }
+    .toast { background: #333; color: #fff; padding: 15px 20px; border-radius: 4px; margin-top: 10px; opacity: 0; transition: opacity 0.5s; box-shadow: 0 4px 6px rgba(0,0,0,0.3); font-size: 14px; border-left: 5px solid var(--success); }
+    .toast.show { opacity: 1; }
+
+    .dash-card { background: var(--box-bg); border-top: 5px solid var(--primary); box-shadow: 0 4px 6px rgba(0,0,0,0.1); padding: 30px; width: 200px; border-radius: 8px; cursor: pointer; transition: 0.3s; font-weight: bold; font-size: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100px; text-align: center; position: relative; }
+    .dash-card:hover { transform: translateY(-5px); box-shadow: 0 8px 15px rgba(0,0,0,0.2); background-color: var(--primary); color: white; }
+
+    input[type="text"], input[type="number"], input[type="password"], input[type="date"], select { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 0px; box-sizing: border-box; font-family: inherit; }
+    input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; }
+    
+    #login-section { max-width: 400px; margin: 100px auto; background: var(--box-bg); padding: 30px; border-top: 5px solid var(--primary); box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+    #app-header { background-color: var(--box-bg); padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid var(--secondary); flex-wrap: wrap; gap: 10px;}
+    .header-info span { margin-right: 15px; font-size: 14px; }
+    #main-ui { display: none; }
+    #dashboard-section { text-align: center; padding: 50px; } 
+    
+    .container { padding: 20px 30px; }
+    .card { background: var(--box-bg); padding: 20px; margin-bottom: 20px; border-left: 5px solid var(--primary); display: none; }
+    table { border-collapse: collapse; margin-top: 15px; width: 100%; } 
+    th, td { border: 1px solid #ddd; padding: 10px; text-align: left; font-size: 14px; vertical-align: middle;} 
+    th { background-color: var(--primary); color: white; }
+    
+    .box-statistiche { background-color: #f8f9fa; padding: 15px; border-left: 5px solid var(--secondary); margin-bottom: 20px; font-size: 15px;} 
+    .box-statistiche ul { margin: 10px 0 0 0; padding-left: 20px;}
+    ul.lista-bozza { list-style-type: none; padding: 0; margin-top: 15px; } 
+    ul.lista-bozza li { background-color: #f1f3f5; padding: 10px; margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid var(--primary); }
+    .row-gruppo { background-color: #e9ecef; font-weight: bold; } 
+    .row-figlio td:first-child { padding-left: 30px; border-left: 3px solid var(--primary); }
+    
+    .profilo-img-container { width: 120px; height: 120px; border-radius: 50%; background-color: var(--primary); margin: 0 auto 25px auto; overflow: hidden; border: 3px solid var(--secondary); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+    .profilo-img { width: 100%; height: 100%; object-fit: cover; display: none; }
+    .profilo-img-placeholder { color: white; font-size: 14px; font-weight:bold; }
+  
+    .dash-card-small { background: var(--box-bg); border-top: 4px solid var(--primary); box-shadow: 0 2px 4px rgba(0,0,0,0.1); padding: 15px; width: 140px; border-radius: 6px; cursor: pointer; transition: 0.3s; font-weight: bold; font-size: 13px; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 80px; text-align: center; }
+    .dash-card-small:hover { transform: translateY(-3px); box-shadow: 0 6px 12px rgba(0,0,0,0.15); background-color: var(--primary); color: white; }
+    .chip-btn { padding: 8px 15px; border-radius: 20px; border: 1px solid var(--primary); background: white; color: var(--primary); cursor: pointer; font-size: 12px; font-weight: bold; transition: 0.2s; }
+    .chip-btn:hover { background: #eef2f5; }
+    .chip-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+</style>
